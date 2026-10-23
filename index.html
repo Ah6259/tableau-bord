@@ -35,6 +35,13 @@ tr[hidden]{display:none!important}
 a{color:var(--bleu);text-decoration:none}
 h3{font-size:14px;margin:16px 0 8px;color:var(--doux)}
 summary{cursor:pointer}
+.chiffres .carte.clic{cursor:pointer;transition:border-color .15s,transform .15s}
+.chiffres .carte.clic:hover,.chiffres .carte.clic:focus-visible{border-color:var(--bleu);outline:none;transform:translateY(-1px)}
+.chiffres .carte.clic span::after{content:" ›";color:var(--bleu)}
+.chiffres .carte span[data-vide]::after{content:" · aucun"}
+h2{scroll-margin-top:12px}
+h2.eclair{animation:eclair 1.6s}
+@keyframes eclair{0%{background:var(--bleuf)}100%{background:transparent}}
 .journal{font:12px/1.5 ui-monospace,Consolas,monospace;background:var(--carte);border:1px solid var(--ligne);border-radius:8px;padding:8px 10px;margin:6px 0;white-space:pre-wrap;word-break:break-word;color:var(--texte)}
 .boite{overflow-x:auto}
 .haut{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap}
@@ -106,28 +113,36 @@ function passTexte(p) {
 
 function afficher(d) {
   const S = d.sites;
-  const rouges = S.flatMap(s => s.robots.filter(r => !r.ok).map(r => ({...r, site:s.nom})));
+  // 23/10/2026 : état ok | ko (à réparer) | attend (réparation envoyée, attend son prochain passage) | arrete (ne tourne plus)
+  const etat = r => r.etat || (r.ok ? "ok" : "ko");
+  const rouges = S.flatMap(s => s.robots.filter(r => etat(r) === "ko").map(r => ({...r, site:s.nom})));
+  const attente = S.flatMap(s => s.robots.filter(r => etat(r) === "attend").map(r => ({...r, site:s.nom})));
+  const arretes = S.flatMap(s => s.robots.filter(r => etat(r) === "arrete").map(r => ({...r, site:s.nom})));
   const passActifs = S.reduce((t, s) => t + ((s.pass && s.pass.pass) || 0), 0);
   const ajoutes = S.reduce((t, s) => t + (s.ajout_robot || 0), 0);
   let h = `<div class="haut"><div><h1>Tableau de bord</h1><div class="sous">Chiffres du ${esc(d.genere)} (mis à jour chaque matin par le robot)</div></div>
     <button class="sec" id="sortir">Fermer${lire("tdb-code") ? " et oublier le code" : ""}</button></div>
   <div class="chiffres">
     <div class="carte"><b>${S.filter(s => s.statut === "en ligne").length}</b><span>sites en ligne</span></div>
-    <div class="carte"><b class="${rouges.length ? "moins" : "plus"}">${rouges.length}</b><span>robot(s) en échec</span></div>
+    <div class="carte"><b class="${rouges.length ? "moins" : "plus"}">${rouges.length}</b><span>robot(s) à réparer</span></div>
+    <div class="carte"><b style="color:var(--orange)">${attente.length}</b><span>réparé(s), attendent leur prochain passage</span></div>
     <div class="carte"><b>${nf(passActifs)}</b><span>Pass actifs</span></div>
     <div class="carte"><b>${nf(ajoutes)}</b><span>éléments ajoutés aujourd'hui par les robots</span></div>
     <div class="carte"><b>${nf(d.personnes.length)}</b><span>clients et abonnés</span></div>
   </div>`;
-  if (rouges.length) h += `<h2>Robots en échec</h2><div class="sous" style="margin:-4px 0 8px">Touchez un robot pour voir la cause.</div><div class="carte boite"><table class="cartes"><thead><tr><th>Site</th><th>Robot</th><th>Dépôt</th><th>Dernier passage</th></tr></thead><tbody>${
-    rouges.map((r, i) => `<tr class="site" data-d="cause${i}"><td>${esc(r.site)}</td><td data-l="Robot"><span><span class="p ko">${esc(r.nom)} ▸</span></span></td><td data-l="Dépôt"><span>${esc(r.depot)}</span></td><td data-l="Dernier passage"><span>${dateFr(r.date)}</span></td></tr>
-      <tr class="det" id="cause${i}" hidden><td colspan="4">${cause(r)}</td></tr>`).join("")}</tbody></table></div>`;
+  const tableRobots = (liste, titre, sous, cls, pre) => !liste.length ? "" : `<h2>${titre}</h2><div class="sous" style="margin:-4px 0 8px">${sous}</div><div class="carte boite"><table class="cartes"><thead><tr><th>Site</th><th>Robot</th><th>Dépôt</th><th>Dernier passage</th></tr></thead><tbody>${
+    liste.map((r, i) => `<tr class="site" data-d="${pre}${i}"><td>${esc(r.site)}</td><td data-l="Robot"><span><span class="p ${cls}">${esc(r.nom)} ▸</span></span></td><td data-l="Dépôt"><span>${esc(r.depot)}</span></td><td data-l="Dernier passage"><span>${dateFr(r.date)}</span></td></tr>
+      <tr class="det" id="${pre}${i}" hidden><td colspan="4">${r.reparation ? `<p><b>Réparation envoyée</b> le ${esc(r.reparation.date)} (${esc(r.reparation.depot)}) : ${esc(r.reparation.message)}</p>` : ""}${cause(r)}</td></tr>`).join("")}</tbody></table></div>`;
 
+  h += tableRobots(rouges, "Robots à réparer", "Touchez un robot pour voir la cause.", "ko", "cause");
+  h += tableRobots(attente, "Réparés, attendent leur prochain passage", "En échec avant la réparation : ils redeviennent verts seuls à leur prochain passage.", "at", "att");
+  h += tableRobots(arretes, "Robots qui ne tournent plus", "Plus aucun passage depuis 7 jours : jamais comptés rouges.", "in", "arr");
   h += `<h2>Sites</h2><div class="sous" style="margin:-4px 0 8px">Touchez une ligne pour voir le détail.</div><div class="carte boite"><table class="cartes"><thead><tr>
     <th>Site</th><th>Statut</th><th>Mise à jour</th><th class="n">Total</th><th class="n">Ajoutés aujourd'hui</th><th class="n">Depuis hier</th><th class="n">7 jours</th><th>Visiteurs</th><th>Pass / abonnés</th><th>Robots</th></tr></thead><tbody>`;
   S.forEach((s, i) => {
     const age = ageJours(s.maj);
     const vieux = QUOTIDIENS.has(s.id) && age != null && age > 1;
-    const ko = s.robots.filter(r => !r.ok);
+    const ko = s.robots.filter(r => etat(r) === "ko"), att = s.robots.filter(r => etat(r) === "attend");
     h += `<tr class="site" data-d="det${i}">
       <td><a href="${esc(s.url)}" target="_blank" rel="noopener" onclick="event.stopPropagation()">${esc(s.nom)}</a></td>
       <td data-l="Statut"><span><span class="p ${s.statut === "en ligne" ? "ok" : "in"}">${esc(s.statut)}</span></span></td>
@@ -138,7 +153,7 @@ function afficher(d) {
       <td data-l="7 jours" class="n"><span>${delta(s.evolution_7j)}</span></td>
       <td data-l="Visiteurs"><span>${s.visiteurs != null ? `${nf(s.visiteurs)} <span class="sous">${esc(s.visiteurs_lib || "")}</span>` : "—"}</span></td>
       <td data-l="Pass / abonnés"><span>${esc(passTexte(s.pass))}</span></td>
-      <td data-l="Robots"><span>${!s.robots.length ? "—" : ko.length ? `<span class="p ko">${ko.length} rouge(s) / ${s.robots.length}</span>` : `<span class="p ok">${s.robots.length} verts</span>`}</span></td></tr>
+      <td data-l="Robots"><span>${!s.robots.length ? "—" : ko.length ? `<span class="p ko">${ko.length} rouge(s) / ${s.robots.length}</span>` : att.length ? `<span class="p at">${att.length} réparé(s), en attente / ${s.robots.length}</span>` : `<span class="p ok">${s.robots.length} verts</span>`}</span></td></tr>
       <tr class="det" id="det${i}" hidden><td colspan="10">${detail(s)}</td></tr>`;
   });
   h += `</tbody></table></div>`;
@@ -186,9 +201,33 @@ function detail(s) {
   const l = [];
   if (s.maj_lib) l.push(`Date affichée : ${esc(s.maj_lib)}.`);
   Object.entries(s.details || {}).forEach(([k, v]) => l.push(`${esc(k)} : <b>${esc(typeof v === "number" ? nf(v) : String(v ?? "—").replace(/(\d{4})-(\d\d)-(\d\d)/g, "$3/$2/$1"))}</b>`));
-  if (s.robots.length) l.push("Robots : " + s.robots.map(r => `<span class="p ${r.ok ? "ok" : "ko"}">${esc(r.nom)} ${dateFr(r.date).slice(0,5)}</span>`).join(" "));
+  if (s.robots.length) l.push("Robots : " + s.robots.map(r => `<span class="p ${({ ok: "ok", ko: "ko", attend: "at", arrete: "in" })[r.etat || (r.ok ? "ok" : "ko")]}">${esc(r.nom)} ${dateFr(r.date).slice(0,5)}</span>`).join(" "));
   return l.length ? l.join("<br>") : "Pas d'autre détail.";
 }
+
+// 23/10/2026 (Ahmed : « ces boutons doivent fonctionner ») : chaque case du haut mène à sa section (titre h2 trouvé par ses
+// premiers mots) ; branché après chaque affichage, sans toucher au code qui dessine les cases.
+const CASES = [[/sites en ligne/i, /^Sites/], [/à réparer|en échec/i, /^Robots (à réparer|en échec)/], [/attendent/i, /^Réparés/],
+  [/Pass actifs/i, /^Clients/], [/ajoutés aujourd/i, /^Sites/], [/clients et abonnés/i, /^Clients/]];
+function brancherCases() {
+  document.querySelectorAll(".chiffres .carte").forEach(c => {
+    if (c.dataset.branche) return;
+    c.dataset.branche = "1";
+    const lib = c.querySelector("span")?.textContent || "";
+    const cible = (CASES.find(([l]) => l.test(lib)) || [])[1];
+    if (!cible) return;
+    c.classList.add("clic"); c.tabIndex = 0; c.setAttribute("role", "button");
+    const aller = () => {
+      const h2 = [...document.querySelectorAll("#tdb h2")].find(h => cible.test(h.textContent.trim()));
+      if (!h2) { c.querySelector("span").dataset.vide = "1"; setTimeout(() => delete c.querySelector("span").dataset.vide, 1800); return; }
+      h2.scrollIntoView({behavior: "smooth", block: "start"});
+      h2.classList.remove("eclair"); void h2.offsetWidth; h2.classList.add("eclair");
+    };
+    c.addEventListener("click", aller);
+    c.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); aller(); } });
+  });
+}
+new MutationObserver(brancherCases).observe($("#tdb"), {childList: true});
 
 $("#f").addEventListener("submit", e => { e.preventDefault(); const c = $("#code").value; if (c) ouvrir(c, $("#garder").checked); });
 const memo = lire("tdb-code");

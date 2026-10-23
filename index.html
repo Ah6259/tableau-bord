@@ -125,7 +125,7 @@ function afficher(d) {
     <button class="sec" id="sortir">Fermer${lire("tdb-code") ? " et oublier le code" : ""}</button></div>
   <div class="chiffres">
     <div class="carte"><b>${S.filter(s => s.statut === "en ligne").length}</b><span>sites en ligne</span></div>
-    <div class="carte"><b class="plus">${S.filter(s => (s.autonomie || {}).niveau === "autonome").length} / ${S.length}</b><span>sites autonomes</span></div>
+    <div class="carte"><b class="plus">${S.filter(s => /^autonome/.test((s.autonomie || {}).niveau)).length} / ${S.length}</b><span>sites autonomes</span></div>
     <div class="carte"><b class="${rouges.length ? "moins" : "plus"}">${rouges.length}</b><span>robot(s) à réparer</span></div>
     <div class="carte"><b style="color:var(--orange)">${attente.length}</b><span>réparé(s), attendent leur prochain passage</span></div>
     <div class="carte"><b>${nf(passActifs)}</b><span>Pass actifs</span></div>
@@ -201,20 +201,20 @@ function cause(r) {
 }
 
 // 23/10/2026 (Ahmed : « le but de nos sites est qu'ils soient autonomes ») : niveau devant le nom + liste « à faire »
-const NIVEAUX = {autonome: ["ok", "✅ autonome"], presque: ["at", "🟠 presque"], non: ["ko", "🔴 pas autonome"], inconnu: ["in", "? à évaluer"]};
+const NIVEAUX = {autonome: ["ok", "✅ autonome"], autonome_d17: ["ok", "✅ autonome (paiement D17)"], presque: ["at", "🟠 presque"], non: ["ko", "🔴 pas autonome"], inconnu: ["in", "? à évaluer"]};
 function badgeAuto(s) {
   const [cls, lib] = NIVEAUX[(s.autonomie || {}).niveau] || NIVEAUX.inconnu;
   return `<span class="p ${cls}" title="Autonomie">${lib}</span>`;
 }
 function listeAFaire(s) {
   const a = (s.autonomie || {}).a_faire || [];
-  return a.length ? `<ul class="afaire">${a.map(x => `<li>${esc(x)}</li>`).join("")}</ul>` : `<span class="plus">Rien à faire : site autonome.</span>`;
+  return a.length ? `${/^autonome/.test((s.autonomie || {}).niveau) ? `<span class="sous">Site autonome ; améliorations possibles :</span>` : ""}<ul class="afaire">${a.map(x => `<li>${esc(x)}</li>`).join("")}</ul>` : `<span class="plus">Rien à faire : site autonome.</span>`;
 }
 function sectionAutonomie(d) {
-  const S = d.sites, ordre = {non: 0, presque: 1, inconnu: 2, autonome: 3};
+  const S = d.sites, ordre = {non: 0, presque: 1, inconnu: 2, autonome_d17: 3, autonome: 4};
   const tries = [...S].sort((a, b) => (ordre[(a.autonomie || {}).niveau] ?? 2) - (ordre[(b.autonomie || {}).niveau] ?? 2));
   return `<h2>Autonomie des sites</h2><div class="sous" style="margin:-4px 0 8px">But : chaque site vit seul. ✅ autonome = ni toi, ni le PC, ni Claude (sauf pour réparer une panne) ;
-    🟠 presque = seul geste : vérifier un paiement et appuyer sur le bouton du Pass ; 🔴 = dépend du PC ou d'un geste régulier.
+    ✅ autonome (paiement D17) = seul geste : vérifier un paiement D17 / IZI et appuyer sur le bouton du Pass ; 🔴 = dépend du PC ou d'un geste régulier.
     Touchez un site pour sa liste « à faire ». Liste modifiable sur GitHub : « tableau de bord/autonomie.json ».</div>
     ${(d.autonomie_commun || []).length ? `<div class="carte" style="padding:10px 14px;margin-bottom:10px"><b>Pour tous les sites</b><ul class="afaire">${d.autonomie_commun.map(x => `<li>${esc(x)}</li>`).join("")}</ul></div>` : ""}
     <div class="carte boite"><table class="cartes"><thead><tr><th>Site</th><th>Autonomie</th><th class="n">À faire</th></tr></thead><tbody>${

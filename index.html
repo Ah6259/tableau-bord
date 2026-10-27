@@ -119,6 +119,7 @@ function afficher(d) {
   const rouges = S.flatMap(s => s.robots.filter(r => etat(r) === "ko").map(r => ({...r, site:s.nom})));
   const attente = S.flatMap(s => s.robots.filter(r => etat(r) === "attend").map(r => ({...r, site:s.nom})));
   const arretes = S.flatMap(s => s.robots.filter(r => etat(r) === "arrete").map(r => ({...r, site:s.nom})));
+  const sources = S.flatMap(s => s.robots.filter(r => etat(r) === "source").map(r => ({...r, site:s.nom})));
   const passActifs = S.reduce((t, s) => t + ((s.pass && s.pass.pass) || 0), 0);
   const ajoutes = S.reduce((t, s) => t + (s.ajout_robot || 0), 0);
   let h = `<div class="haut"><div><h1>Tableau de bord</h1><div class="sous">Chiffres du ${esc(d.genere)} (mis à jour chaque matin par le robot)</div></div>
@@ -138,6 +139,7 @@ function afficher(d) {
 
   h += tableRobots(rouges, "Robots à réparer", "Touchez un robot pour voir la cause.", "ko", "cause");
   h += tableRobots(attente, "Réparés, attendent leur prochain passage", "En échec avant la réparation : ils redeviennent verts seuls à leur prochain passage.", "at", "att");
+  h += tableRobots(sources, "Panne chez la source (rien à réparer chez nous)", "Le site d'où le robot lit ses données (ministère, Douane…) ne répond plus : les anciennes données restent en ligne, le robot reprend seul quand la source revient.", "at", "src");
   h += tableRobots(arretes, "Robots qui ne tournent plus", "Plus aucun passage depuis 7 jours : jamais comptés rouges.", "in", "arr");
   h += sectionAutonomie(d);
   h += `<h2>Sites</h2><div class="sous" style="margin:-4px 0 8px">Touchez une ligne pour voir le détail.</div><div class="carte boite"><table class="cartes"><thead><tr>
@@ -227,7 +229,7 @@ function detail(s) {
   const l = [`<b>À faire pour l'autonomie</b> ${listeAFaire(s)}`];
   if (s.maj_lib) l.push(`Date affichée : ${esc(s.maj_lib)}.`);
   Object.entries(s.details || {}).forEach(([k, v]) => l.push(`${esc(k)} : <b>${esc(typeof v === "number" ? nf(v) : String(v ?? "—").replace(/(\d{4})-(\d\d)-(\d\d)/g, "$3/$2/$1"))}</b>`));
-  if (s.robots.length) l.push("Robots : " + s.robots.map(r => `<span class="p ${({ ok: "ok", ko: "ko", attend: "at", arrete: "in" })[r.etat || (r.ok ? "ok" : "ko")]}">${esc(r.nom)} ${dateFr(r.date).slice(0,5)}</span>`).join(" "));
+  if (s.robots.length) l.push("Robots : " + s.robots.map(r => `<span class="p ${({ ok: "ok", ko: "ko", attend: "at", arrete: "in", source: "at" })[r.etat || (r.ok ? "ok" : "ko")]}">${esc(r.nom)} ${dateFr(r.date).slice(0,5)}</span>`).join(" "));
   return l.length ? l.join("<br>") : "Pas d'autre détail.";
 }
 

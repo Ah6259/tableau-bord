@@ -127,6 +127,7 @@ function afficher(d) {
   <div class="chiffres">
     <div class="carte"><b>${S.filter(s => s.statut === "en ligne").length}</b><span>sites en ligne</span></div>
     <div class="carte"><b class="plus">${S.filter(s => /^autonome/.test((s.autonomie || {}).niveau)).length} / ${S.length}</b><span>sites autonomes</span></div>
+    <div class="carte"><b>${d.google_periode ? nf(S.reduce((t, s) => t + ((s.google || {}).clics || 0), 0)) : "—"}</b><span>${d.google_periode ? "clics depuis Google (7 jours)" : "Google : accès à créer (dimanche)"}</span></div>
     <div class="carte"><b class="${rouges.length ? "moins" : "plus"}">${rouges.length}</b><span>robot(s) à réparer</span></div>
     <div class="carte"><b style="color:var(--orange)">${attente.length}</b><span>réparé(s), attendent leur prochain passage</span></div>
     <div class="carte"><b>${nf(passActifs)}</b><span>Pass actifs</span></div>
@@ -143,7 +144,7 @@ function afficher(d) {
   h += tableRobots(arretes, "Robots qui ne tournent plus", "Plus aucun passage depuis 7 jours : jamais comptés rouges.", "in", "arr");
   h += sectionAutonomie(d);
   h += `<h2>Sites</h2><div class="sous" style="margin:-4px 0 8px">Touchez une ligne pour voir le détail.</div><div class="carte boite"><table class="cartes"><thead><tr>
-    <th>Site</th><th>Statut</th><th>Mise à jour</th><th class="n">Total</th><th class="n">Ajoutés aujourd'hui</th><th class="n">Depuis hier</th><th class="n">7 jours</th><th>Visiteurs</th><th>Pass / abonnés</th><th>Robots</th></tr></thead><tbody>`;
+    <th>Site</th><th>Statut</th><th>Mise à jour</th><th class="n">Total</th><th class="n">Ajoutés aujourd'hui</th><th class="n">Depuis hier</th><th class="n">7 jours</th><th class="n">Google (7 j)</th><th>Visiteurs</th><th>Pass / abonnés</th><th>Robots</th></tr></thead><tbody>`;
   S.forEach((s, i) => {
     const age = ageJours(s.maj);
     const vieux = QUOTIDIENS.has(s.id) && age != null && age > 1;
@@ -156,10 +157,11 @@ function afficher(d) {
       <td data-l="Ajoutés aujourd'hui" class="n"><span>${s.ajout_robot != null ? delta(s.ajout_robot) + (s.ajout_lib ? ` <span class="sous">${esc(s.ajout_lib)}</span>` : "") : "—"}</span></td>
       <td data-l="Depuis hier" class="n"><span>${delta(s.evolution_jour)}</span></td>
       <td data-l="7 jours" class="n"><span>${delta(s.evolution_7j)}</span></td>
+      <td data-l="Google (7 j)" class="n"><span>${celluleGoogle(s)}</span></td>
       <td data-l="Visiteurs"><span>${s.visiteurs != null ? `${nf(s.visiteurs)} <span class="sous">${esc(s.visiteurs_lib || "")}</span>` : "—"}</span></td>
       <td data-l="Pass / abonnés"><span>${esc(passTexte(s.pass))}</span></td>
       <td data-l="Robots"><span>${!s.robots.length ? "—" : ko.length ? `<span class="p ko">${ko.length} rouge(s) / ${s.robots.length}</span>` : att.length ? `<span class="p at">${att.length} réparé(s), en attente / ${s.robots.length}</span>` : `<span class="p ok">${s.robots.length} verts</span>`}</span></td></tr>
-      <tr class="det" id="det${i}" hidden><td colspan="10">${detail(s)}</td></tr>`;
+      <tr class="det" id="det${i}" hidden><td colspan="11">${detail(s)}</td></tr>`;
   });
   h += `</tbody></table></div>`;
 
@@ -225,6 +227,14 @@ function sectionAutonomie(d) {
         <tr class="det" id="auto${i}" hidden><td colspan="3">${listeAFaire(s)}</td></tr>`; }).join("")}</tbody></table></div>`;
 }
 
+// 28/10/2026 (Ahmed) : ce que Google affiche déjà de chaque site (Search Console, 7 derniers jours complets)
+function celluleGoogle(s) {
+  const g = s.google;
+  if (!g) return '<span class="sous">accès à créer</span>';
+  if (!g.affichages) return '<span class="sous">absent de Google</span>';
+  return `${nf(g.clics)} clic${g.clics > 1 ? "s" : ""} <span class="sous">· ${nf(g.affichages)} affichages · position ${String(g.position).replace(".", ",")}</span>`;
+}
+
 function detail(s) {
   const l = [`<b>À faire pour l'autonomie</b> ${listeAFaire(s)}`];
   if (s.maj_lib) l.push(`Date affichée : ${esc(s.maj_lib)}.`);
@@ -235,7 +245,7 @@ function detail(s) {
 
 // 23/10/2026 (Ahmed : « ces boutons doivent fonctionner ») : chaque case du haut mène à sa section (titre h2 trouvé par ses
 // premiers mots) ; branché après chaque affichage, sans toucher au code qui dessine les cases.
-const CASES = [[/sites en ligne/i, /^Sites/], [/autonomes/i, /^Autonomie/], [/à réparer|en échec/i, /^Robots (à réparer|en échec)/], [/attendent/i, /^Réparés/],
+const CASES = [[/sites en ligne/i, /^Sites/], [/Google/i, /^Sites/], [/autonomes/i, /^Autonomie/], [/à réparer|en échec/i, /^Robots (à réparer|en échec)/], [/attendent/i, /^Réparés/],
   [/Pass actifs/i, /^Clients/], [/ajoutés aujourd/i, /^Sites/], [/clients et abonnés/i, /^Clients/]];
 function brancherCases() {
   document.querySelectorAll(".chiffres .carte").forEach(c => {

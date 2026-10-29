@@ -45,7 +45,7 @@ h2.eclair{animation:eclair 1.6s}
 @keyframes eclair{0%{background:var(--bleuf)}100%{background:transparent}}
 .journal{font:12px/1.5 ui-monospace,Consolas,monospace;background:var(--carte);border:1px solid var(--ligne);border-radius:8px;padding:8px 10px;margin:6px 0;white-space:pre-wrap;word-break:break-word;color:var(--texte)}
 .boite{overflow-x:auto}
-.haut{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap}
+.haut{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap}.boutons-haut{display:flex;gap:8px;flex-wrap:wrap;align-items:center}a.lien-gc{text-decoration:none;display:inline-block;background:transparent;color:var(--doux);border:1px solid var(--ligne);padding:6px 12px;font-size:13px;border-radius:8px}
 .vide{color:var(--doux)}
 @media (max-width:760px){
  table.cartes thead{display:none}
@@ -72,6 +72,8 @@ h2.eclair{animation:eclair 1.6s}
 <div id="tdb" hidden></div>
 </main>
 <script>
+// 29/10/2026 (Ahmed) : lien « Visites du jour » vers GoatCounter (connexion obligatoire), jour de Tunis, groupé par heure
+const aujTunis = () => new Date().toLocaleDateString("en-CA", { timeZone: "Africa/Tunis" });
 "use strict";
 const QUOTIDIENS = new Set(["immobilier","eau","concours","ao","conf"]);
 const $ = s => document.querySelector(s);
@@ -123,7 +125,8 @@ function afficher(d) {
   const passActifs = S.reduce((t, s) => t + ((s.pass && s.pass.pass) || 0), 0);
   const ajoutes = S.reduce((t, s) => t + (s.ajout_robot || 0), 0);
   let h = `<div class="haut"><div><h1>Tableau de bord</h1><div class="sous">Chiffres du ${esc(d.genere)} (mis à jour chaque matin par le robot)</div></div>
-    <button class="sec" id="sortir">Fermer${lire("tdb-code") ? " et oublier le code" : ""}</button></div>
+    <div class="boutons-haut"><a class="sec lien-gc" target="_blank" rel="noopener noreferrer" href="https://prix-eaux-tunisie.goatcounter.com/?hl-period=day&amp;group=hour&amp;period-start=${aujTunis()}&amp;period-end=${aujTunis()}">📊 Visites du jour (GoatCounter)</a>
+    <button class="sec" id="sortir">Fermer${lire("tdb-code") ? " et oublier le code" : ""}</button></div></div>
   <div class="chiffres">
     <div class="carte"><b>${S.filter(s => s.statut === "en ligne").length}</b><span>sites en ligne</span></div>
     <div class="carte"><b class="plus">${S.filter(s => /^autonome/.test((s.autonomie || {}).niveau)).length} / ${S.length}</b><span>sites autonomes</span></div>

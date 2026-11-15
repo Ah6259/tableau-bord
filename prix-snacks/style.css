@@ -31,7 +31,10 @@ button:disabled{opacity:.5;cursor:default}
 @media (max-width:760px){.filtres{grid-template-columns:1fr 1fr;padding:10px 12px}}
 .chiffres{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-top:14px}
 .types-rem{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin:6px 0 10px}.types-rem span{color:var(--doux);font-size:13px}
-.sommaire{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:12px}.sommaire span{color:var(--doux);font-size:13px;margin-right:2px}
+.sommaire.carte{margin-top:14px;padding:12px 14px;border:2px solid var(--bleu)}.sommaire-titre{font-weight:700;font-size:16px;margin-bottom:10px}
+.sommaire-grille{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px}
+button.saut{display:flex;align-items:center;gap:8px;padding:12px;border-radius:10px;border:1px solid var(--bleu);background:var(--bleuf);color:var(--texte);font:600 15px/1.25 system-ui,sans-serif;text-align:left;cursor:pointer;min-height:48px}
+button.saut .ico{font-size:18px}button.saut b{margin-left:auto;font-size:13px;color:var(--doux);font-weight:600}
 .chiffres .carte{padding:12px 14px}.chiffres b{display:block;font-size:24px}.chiffres span{color:var(--doux);font-size:13px}
 button.carte.clic{font:inherit;color:var(--texte);text-align:left;cursor:pointer;transition:border-color .15s,transform .15s}
 button.carte.clic:hover,button.carte.clic:focus-visible{border-color:var(--bleu);outline:none;transform:translateY(-1px)}

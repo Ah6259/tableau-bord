@@ -94,13 +94,12 @@ function afficher() {
   // une enseigne qui n'a pas répondu à UN passage n'est pas « en panne » (règle § 51) : ses derniers prix lus restent, la date le dit ;
   // « en panne » seulement si aucune lecture réussie depuis plus de 2 jours
   const ageJ = j => j ? Math.round((Date.parse(D.genere) - Date.parse(j)) / 864e5) : 99;
-  const etat = Object.entries(D.etat).map(([k, v]) => `${D.enseignes[k] || k} : ${!v.erreur ? `${v.offres} produits le ${dateFr(v.date)}`
-    : ageJ(v.reussite) <= 2 ? `prix du ${dateFr(v.reussite)} <span class="sous">(pas de réponse le ${dateFr(v.date)}, nouvel essai la nuit prochaine)</span>`
-    : `<span class="p ko">en panne depuis le ${dateFr(v.reussite)}</span>`}`).join(" · ");
-  let h = `<div class="haut"><div><h1>Prix des gaufrettes, biscuits et chips</h1>
-    <div class="sous">Relevés du ${dateFr(D.jours[0])} au ${dateFr(D.jours[D.jours.length - 1])} (${D.jours.length} relevé${D.jours.length > 1 ? "s" : ""}, un chaque nuit) · ${etat}</div></div>
-    <div class="boutons"><button class="sec" id="excel">⬇ Exporter Excel</button><button class="sec" id="imprimer">🖨 Rapport (PDF)</button>
-    <button class="sec" id="sortir">Fermer${lire("snacks-code") ? " et oublier le code" : ""}</button></div></div>
+  const pastille = (k, v) => !v.erreur ? `<span class="p ok" title="${esc(D.enseignes[k] || k)}">${esc(D.enseignes[k] || k)} · ${v.offres}</span>`
+    : ageJ(v.reussite) <= 2 ? `<span class="p at">${esc(D.enseignes[k] || k)} · prix du ${dateFr(v.reussite)}</span>` : `<span class="p ko">${esc(D.enseignes[k] || k)} · en panne depuis le ${dateFr(v.reussite)}</span>`;
+  let h = `<div class="haut">
+    <h1>Prix des gaufrettes, biscuits et chips</h1>
+    <div class="etat">${Object.entries(D.etat).map(([k, v]) => pastille(k, v)).join("")}<span class="p in">${D.jours.length} relevé${D.jours.length > 1 ? "s" : ""} · du ${dateFr(D.jours[0])} au ${dateFr(D.jours[D.jours.length - 1])}</span><span class="sous">mis à jour le ${esc(D.genere_heure || dateFr(D.genere))}, chaque nuit</span></div>
+    <div class="boutons"><button class="sec" id="excel">⬇ Excel</button><button class="sec" id="imprimer">🖨 Rapport PDF</button><button class="sec" id="sortir" title="${lire("snacks-code") ? "Ferme la page et oublie le code sur cet appareil" : "Ferme la page"}">✕ Fermer${lire("snacks-code") ? "<small>oublier le code</small>" : ""}</button></div></div>
   <div class="rapport-titre sous">Rapport du ${dateFr(de)} au ${dateFr(a)} · ${F.cat ? CATS[F.cat] : "gaufrettes, biscuits et chips"}${F.ens ? " · " + D.enseignes[F.ens] : ""}${F.marque ? " · " + esc(F.marque) : ""}${F.gram ? " · " + GRAMMAGES.find(([k]) => k === F.gram)[1] : ""}</div>
   <div class="filtres carte">
     <label>Durée <select id="f-periode">${[["7", "7 derniers jours"], ["30", "30 derniers jours"], ["90", "90 derniers jours"], ["tout", "Tout l’historique"], ["perso", "Dates au choix"]].map(([v, t]) => `<option value="${v}"${F.periode === v ? " selected" : ""}>${t}</option>`).join("")}</select></label>
@@ -231,7 +230,7 @@ async function exporter(avec, rem, b) {
     telecharger(L.nom + "-historique.csv", "﻿" + csv(L.histo), "text/csv;charset=utf-8");
     telecharger(L.nom + "-remises.csv", "﻿" + csv(L.remises), "text/csv;charset=utf-8");
   }
-  btn.disabled = false; btn.textContent = "⬇ Exporter Excel";
+  btn.disabled = false; btn.textContent = "⬇ Excel";
 }
 
 // ---------- entrée

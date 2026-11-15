@@ -150,6 +150,7 @@ function afficher() {
   h += `<details class="comment carte"><summary>Comment fonctionne ce site ?</summary><ul>
     <li><b>Ce qu’il suit</b> : les gaufrettes, les biscuits et les chips vendus en ligne par Carrefour (carrefour.tn, chaque magasin) et Géant (geantdrive.tn), toutes marques et tous formats.</li>
     <li><b>Relevé chaque nuit</b> : un robot lit les prix affichés par les sites des magasins (jamais le prix en rayon ni les promotions papier) et ne garde que les produits en stock. Carrefour : prix le plus courant parmi ses magasins, avec le nombre de magasins.</li>
+    <li><b>Les robots et leurs horaires (heure de Tunis)</b> : <b>2h37</b> chaque nuit, un seul robot fait tout, dans l’ordre : lecture de Géant (environ 1 minute), lecture de Carrefour magasin par magasin (environ 3 minutes), enregistrement de l’historique, calcul des remises, puis chiffrement et publication de cette page (vers 2h45). Un magasin qui ne répond pas est relu la nuit suivante, ses derniers prix restent. Dernier passage : <b>${esc(D.genere_heure || dateFr(D.genere))}</b>. Rien ne tourne en journée, sauf un lancement à la main.</li>
     <li><b>Historique</b> : chaque prix est gardé jour après jour depuis la mise en service (${dateFr(D.jours[0])}) ; touchez un produit pour voir tous ses prix.</li>
     <li><b>Remises</b> : « prix barré par le magasin » = le site affiche un ancien prix barré (au moins 2 % de moins) ; « constatée dans l’historique » = le prix du jour est au moins ${Math.round((D.seuil || 0.05) * 100)} % sous le prix habituel du produit (médiane des ${D.fenetre || 30} derniers jours, au moins 3 relevés). Chaque remise a sa date de début, sa date de fin (ou « en cours ») et son taux.</li>
     <li><b>Durée au choix</b> : 7, 30, 90 jours, tout l’historique ou deux dates ; les chiffres, les remises et les variations se recalculent sur cette durée.</li>
@@ -160,7 +161,7 @@ function afficher() {
     <li><b>Vos données</b> : la page est privée (code), les prix sont chiffrés dans le fichier publié et déchiffrés dans votre navigateur ; aucun compteur de visites, rien n’est envoyé.</li>
     <li><b>Comparer les magasins</b> : ce n’est pas un comparateur ; le même produit peut apparaître une fois par magasin, chacun avec son historique.</li>
   </ul></details>
-  <p class="note">Prix indicatifs lus sur les sites des magasins : <a href="https://www.carrefour.tn" target="_blank" rel="noopener noreferrer">carrefour.tn</a> et <a href="https://www.geantdrive.tn" target="_blank" rel="noopener noreferrer">geantdrive.tn</a>. Mis à jour chaque nuit vers 2h30 ; page produite le ${dateFr(D.genere)}.</p>`;
+  <p class="note">Prix indicatifs lus sur les sites des magasins : <a href="https://www.carrefour.tn" target="_blank" rel="noopener noreferrer">carrefour.tn</a> et <a href="https://www.geantdrive.tn" target="_blank" rel="noopener noreferrer">geantdrive.tn</a>. Mis à jour chaque nuit vers 2h45 ; page produite le ${esc(D.genere_heure || dateFr(D.genere))}.</p>`;
   $("#site").innerHTML = h;
   brancher(avec, rem, b);
 }

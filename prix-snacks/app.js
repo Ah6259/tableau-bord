@@ -15,7 +15,10 @@ let VUE = "", REM = "";   // cases du haut cliquables (règle d'Ahmed, 15/11/202
 let aller = null;
 addEventListener("popstate", e => { if (!(e.state && e.state.saut)) { const som = document.querySelector(".sommaire"); if (som) som.scrollIntoView({behavior: "smooth", block: "center"}); } });         // section vers laquelle défiler après le prochain affichage
 // Concurrence (15/11/2026) : courbes choisies (marques ou produits ; la couleur suit l'élément, jamais son rang), calendrier complet ou non
-let COURBES = [], CAL_TOUT = false, COURBE_MSG = "", REM_TOUT = false;
+let COURBES = [], CAL_TOUT = false, COURBE_MSG = "", REM_TOUT = false, TYPE_REM = "";   // TYPE_REM : "" toutes, "prix" sur le prix, "lot" sur le lot
+// type de remise (15/11/2026, demande d'Ahmed et de son frère) : sur le PRIX (prix barré, baisse constatée) ou sur le LOT (offre écrite par le magasin)
+const typeRem = r => r.sorte === "lot" ? "Sur le lot : " + (r.offre_texte || "offre du magasin") : r.sorte === "annoncee" ? "Sur le prix : prix barré par le magasin" : "Sur le prix : constatée dans l’historique";
+const tauxRem = r => r.taux == null ? "—" : (r.sorte === "lot" ? "≈ " : "") + "−" + pct(r.taux);
 const REM_MAX = 20;       // remises montrées d'abord (15/11 : 90 remises en cartes poussaient les courbes très loin sur téléphone)
 const MAX_COURBES = 6;
 // Grammage (demande d'Ahmed, 15/11/2026) : tranches de poids lues sur le produit ; un lot de plusieurs sachets est à part ; poids non lu = à part
@@ -129,15 +132,17 @@ function afficher() {
     <button class="carte clic" data-aller="produits" data-vue="hausse"><b>${hausses}</b><span>prix en hausse sur la durée</span></button>
   </div>
   <h2 id="remises">${REM === "cours" ? `Remises en cours (${enCours.length})` : `Remises du ${dateFr(de)} au ${dateFr(a)} (${rem.length})`}${REM ? ` <button class="sec" data-rem="">Voir toutes les remises de la durée</button>` : ""}</h2>`;
-  const remAff = REM === "cours" ? enCours : rem;
+  const remType = (REM === "cours" ? enCours : rem), nbType = k => remType.filter(r => !k || (k === "lot") === (r.sorte === "lot")).length;
+  if (remType.length) h += `<div class="types-rem"><span>Type de remise :</span>${[["", "Toutes"], ["prix", "Sur le prix"], ["lot", "Sur le lot (2e gratuit, −50 % sur le 2e…)"]].map(([k, t]) => `<button class="sec mini" data-type-rem="${k}" aria-pressed="${TYPE_REM === k}">${t} (${nbType(k)})</button>`).join("")}</div>`;
+  const remAff = remType.filter(r => !TYPE_REM || (TYPE_REM === "lot") === (r.sorte === "lot"));
   if (!remAff.length) h += `<div class="vide">Aucune remise ${REM === "cours" ? "en cours" : "sur cette durée"} avec ces filtres.</div>`;
   else {
-    remAff.sort((x, y) => (y.en_cours - x.en_cours) || (y.taux - x.taux));
-    h += `<div class="boite"><table class="cartes"><thead><tr><th>Produit</th><th>Marque</th><th>Magasin</th><th class="n">Prix habituel</th><th class="n">Prix remisé</th><th class="n">Économie</th><th class="n">Remise</th><th>Début</th><th>Fin</th><th>Sorte</th></tr></thead><tbody>`;
+    remAff.sort((x, y) => (y.en_cours - x.en_cours) || ((y.taux ?? 0) - (x.taux ?? 0)));
+    h += `<div class="boite"><table class="cartes"><thead><tr><th>Produit</th><th>Marque</th><th>Magasin</th><th class="n">Prix habituel</th><th class="n">Prix remisé</th><th class="n">Économie</th><th class="n">Remise</th><th>Début</th><th>Fin</th><th>Type de remise</th></tr></thead><tbody>`;
     for (const r of (REM_TOUT ? remAff : remAff.slice(0, REM_MAX))) h += `<tr><td data-l="Produit">${esc(r.nom)}${r.poids_g ? ` <span class="sous">${r.poids_g} g</span>` : ""}</td><td data-l="Marque">${esc(r.marque || "—")}</td>
       <td data-l="Magasin">${esc(D.enseignes[r.enseigne] || r.enseigne)}</td><td class="n" data-l="Prix habituel">${dt(r.prix_habituel)}</td><td class="n" data-l="Prix remisé"><b>${dt(r.prix_remise)}</b></td><td class="n" data-l="Économie">${r.montant != null ? "−" + dt(r.montant) : "—"}</td>
-      <td class="n" data-l="Remise"><span class="p ok">−${pct(r.taux)}</span></td><td data-l="Début">${r.debut_connu === false ? `au plus tard le ${dateFr(r.debut)} <span class="sous">(déjà là au 1er relevé)</span>` : dateFr(r.debut)}</td><td data-l="Fin">${r.en_cours ? '<span class="p in">en cours</span>' : dateFr(r.fin)}</td>
-      <td data-l="Sorte">${r.sorte === "annoncee" ? "prix barré par le magasin" : "constatée dans l’historique"}</td></tr>`;
+      <td class="n" data-l="Remise"><span class="p ok">${tauxRem(r)}</span></td><td data-l="Début">${r.debut_connu === false ? `au plus tard le ${dateFr(r.debut)} <span class="sous">(déjà là au 1er relevé)</span>` : dateFr(r.debut)}</td><td data-l="Fin">${r.en_cours ? '<span class="p in">en cours</span>' : dateFr(r.fin)}</td>
+      <td data-l="Type de remise">${esc(typeRem(r))}</td></tr>`;
     h += `</tbody></table></div>`;
     if (!REM_TOUT && remAff.length > REM_MAX) h += `<p><button class="sec" id="rem-tout">Voir les ${remAff.length - REM_MAX} autres remises</button></p>`;
   }
@@ -170,6 +175,7 @@ function afficher() {
     <li><b>Les robots et leurs horaires (heure de Tunis)</b> : <b>2h37</b> chaque nuit, un seul robot fait tout, dans l’ordre : lecture de Géant (environ 1 minute), lecture de Carrefour magasin par magasin (environ 3 minutes), enregistrement de l’historique, calcul des remises, puis chiffrement et publication de cette page (vers 2h45). Un magasin qui ne répond pas est relu la nuit suivante, ses derniers prix restent. Dernier passage : <b>${esc(D.genere_heure || dateFr(D.genere))}</b>. Rien ne tourne en journée, sauf un lancement à la main.</li>
     <li><b>Historique</b> : chaque prix est gardé jour après jour depuis la mise en service (${dateFr(D.jours[0])}) ; touchez un produit pour voir tous ses prix.</li>
     <li><b>Remises</b> : « prix barré par le magasin » = le site affiche un ancien prix barré (au moins 2 % de moins) ; « constatée dans l’historique » = le prix du jour est au moins ${Math.round((D.seuil || 0.05) * 100)} % sous le prix habituel du produit (médiane des ${D.fenetre || 30} derniers jours, au moins 3 relevés). Chaque remise a sa date de début, sa date de fin (ou « en cours ») et son taux.</li>
+    <li><b>Type de remise</b> : « Sur le prix » = prix barré par le magasin ou baisse constatée dans l’historique ; « Sur le lot » = offre que le magasin écrit dans le nom d’un lot (« 3 dont 1 gratuit », « −50 % sur le 2e », « +20 % de produit gratuit », produit offert). Pour une offre sur le lot, la remise indiquée (≈) est celle que l’offre annonce elle-même (3 dont 1 gratuit = 33 %), jamais devinée ; sans pourcentage écrit : « — » et 🎁 au calendrier. Les boutons « Type de remise » au-dessus de la liste filtrent l’un ou l’autre.</li>
     <li><b>Aller à</b> : en haut de la page, sous Excel et Rapport PDF, une rangée de boutons mène directement à chaque partie (remises, courbes des prix, remises par marque, calendrier, qui suit qui, produits) ; le bouton « ↑ Sommaire » en bas de l’écran (ou le bouton retour du téléphone) ramène à cette rangée ; la liste des remises montre d’abord les ${REM_MAX} plus importantes (« Voir les autres remises » pour tout voir).</li>
     <li><b>Courbes des prix</b> : courbes du prix au kilo, par marque (prix médian au kilo de ses produits) ou par produit (bouton 📈 dans la liste), jusqu’à ${MAX_COURBES} à la fois ; les points marquent les jours en remise ; passez le doigt sur la courbe pour lire les prix d’un jour.</li>
     <li><b>Remises par marque</b> : pour chaque marque, nombre de remises, en cours, remise moyenne et la plus forte (en %), économie moyenne en dinars par paquet, magasins et dates ; touchez une marque pour ne voir qu’elle.</li>
@@ -224,7 +230,7 @@ function concurrence(rem, b) {
   else {
     h += `<div class="boite"><table class="cartes" id="t-marques"><thead><tr><th>Marque</th><th class="n">Remises</th><th class="n">En cours</th><th class="n">Remise moyenne</th><th class="n">Plus forte</th><th class="n">Économie moyenne</th><th>Magasins</th><th>Du</th><th>Au</th></tr></thead><tbody>`;
     for (const x of pm) h += `<tr class="marque-ligne" data-marque="${esc(x.marque)}" title="Voir les remises de cette marque"><td data-l="Marque"><b>${esc(x.marque || "(marque non lue)")}</b></td><td class="n" data-l="Remises">${x.n}</td><td class="n" data-l="En cours">${x.en_cours}</td>
-      <td class="n" data-l="Remise moyenne">−${pct(x.taux_moyen)}</td><td class="n" data-l="Plus forte">−${pct(x.taux_max)}</td><td class="n" data-l="Économie moyenne">${x.montant_moyen != null ? "−" + dt(x.montant_moyen) : "—"}</td>
+      <td class="n" data-l="Remise moyenne">${x.taux_moyen == null ? "—" : "−" + pct(x.taux_moyen)}</td><td class="n" data-l="Plus forte">${x.taux_max == null ? "—" : "−" + pct(x.taux_max)}</td><td class="n" data-l="Économie moyenne">${x.montant_moyen != null ? "−" + dt(x.montant_moyen) : "—"}</td>
       <td data-l="Magasins">${x.enseignes.map(e => esc(D.enseignes[e] || e)).join(", ")}</td><td data-l="Du">${dateFr(x.debut)}</td><td data-l="Au">${dateFr(x.fin)}</td></tr>`;
     h += `</tbody></table></div><p class="sous">Touchez une marque pour ne voir que ses remises et ses produits.</p>`;
   }
@@ -236,11 +242,11 @@ function concurrence(rem, b) {
   if (!lignesCal.length) h += `<div class="vide">Aucune remise d’une marque connue sur cette durée.</div>`;
   else {
     const niv = v => v >= 0.2 ? 3 : v >= 0.1 ? 2 : 1;
-    h += `<div class="sous">Une ligne par marque, une case par jour relevé : la case est colorée les jours où la marque a au moins une remise ; le chiffre dans la case est la plus forte remise de la marque ce jour-là, en % (jaune : moins de 10 %, orange : 10 à 20 %, rouge : 20 % et plus). Des cases colorées les mêmes jours pour plusieurs marques montrent des remises en même temps.</div>
+    h += `<div class="sous">Une ligne par marque, une case par jour relevé : la case est colorée les jours où la marque a au moins une remise ; le chiffre dans la case est la plus forte remise de la marque ce jour-là, en % (jaune : moins de 10 %, orange : 10 à 20 %, rouge : 20 % et plus ; 🎁 : offre sur le lot sans pourcentage écrit, comme un produit offert). Les offres sur le lot comptent avec leur équivalent annoncé (3 dont 1 gratuit = 33 %). Des cases colorées les mêmes jours pour plusieurs marques montrent des remises en même temps.</div>
     <div class="cal-legende sous"><span><i class="c c0"></i> aucune</span><span><i class="c c1"></i> moins de 10 %</span><span><i class="c c2"></i> 10 à 20 %</span><span><i class="c c3"></i> 20 % et plus</span></div>
     <div class="boite"><table class="cal" id="t-cal"><thead><tr><th></th>${joursP.map(j => `<th class="jour">${j.slice(8, 10)}/${j.slice(5, 7)}</th>`).join("")}</tr></thead><tbody>`;
     for (const x of montrees) h += `<tr><th class="nom">${esc(x.m)}</th>${joursP.map(j => { const c = x.j.get(j);
-      return c ? `<td><button class="c c${niv(c.max)}" data-cal="${esc(x.m)}|${j}|${c.n}|${c.max}" aria-label="${esc(x.m)}, ${dateFr(j)} : ${c.n} remise${c.n > 1 ? "s" : ""}, jusqu’à −${pct(c.max)}">${Math.round(c.max * 100)}</button></td>` : `<td><span class="c c0"></span></td>`; }).join("")}</tr>`;
+      return c ? `<td><button class="c c${niv(c.max)}" data-cal="${esc(x.m)}|${j}|${c.n}|${c.max}" aria-label="${esc(x.m)}, ${dateFr(j)} : ${c.n} remise${c.n > 1 ? "s" : ""}, ${c.max > 0 ? `jusqu’à −${pct(c.max)}` : "offre sur le lot sans pourcentage écrit"}">${c.max > 0 ? Math.round(c.max * 100) : "🎁"}</button></td>` : `<td><span class="c c0"></span></td>`; }).join("")}</tr>`;
     h += `</tbody></table></div><div id="cal-detail" class="sous" aria-live="polite">Touchez une case colorée pour voir le détail.</div>`;
     if (!CAL_TOUT && lignesCal.length > 20) h += `<p><button class="sec" id="cal-tout">Voir les ${lignesCal.length - 20} autres marques</button></p>`;
   }
@@ -316,9 +322,10 @@ function brancher(avec, rem, b) {
   $("#site").querySelectorAll("[data-retire]").forEach(el => el.addEventListener("click", () => { COURBES.splice(+el.dataset.retire, 1); COURBE_MSG = ""; aller = "courbes"; afficher(); }));
   $("#site").querySelectorAll("tr.marque-ligne").forEach(el => el.addEventListener("click", () => { F.marque = el.dataset.marque; toutVoir = false; aller = "remises"; afficher(); }));
   $("#site").querySelectorAll("[data-cal]").forEach(el => el.addEventListener("click", () => { const [m, j, n, mx] = el.dataset.cal.split("|");
-    $("#cal-detail").innerHTML = `<b>${esc(m)}</b>, ${dateFr(j)} : ${n} remise${n > 1 ? "s" : ""} en cours, la plus forte à −${pct(+mx)}.`; }));
+    $("#cal-detail").innerHTML = `<b>${esc(m)}</b>, ${dateFr(j)} : ${n} remise${n > 1 ? "s" : ""} en cours, ${+mx > 0 ? `la plus forte à −${pct(+mx)}` : "offre sur le lot sans pourcentage écrit (ex. produit offert)"}.`; }));
   $("#cal-tout")?.addEventListener("click", () => { CAL_TOUT = true; aller = "calendrier"; afficher(); });
   $("#rem-tout")?.addEventListener("click", () => { REM_TOUT = true; aller = "remises"; afficher(); });
+  $("#site").querySelectorAll("[data-type-rem]").forEach(el => el.addEventListener("click", () => { TYPE_REM = el.dataset.typeRem; REM_TOUT = false; aller = "remises"; afficher(); }));
   // 15/11/2026 (le frère d'Ahmed : « comment revenir aux autres parties ? ») : un saut est noté dans l'historique du téléphone (le bouton
   // « retour » ramène au sommaire) et le bouton flottant « ↑ Sommaire » apparaît dès que le sommaire n'est plus à l'écran.
   $("#site").querySelectorAll("[data-saut]").forEach(el => el.addEventListener("click", () => { const c = $("#" + el.dataset.saut); if (c) {
@@ -340,9 +347,9 @@ function lignes(avec, rem, b) {
   const histo = [["Date", "Magasin", "Produit (famille)", "Marque", "Produit", "Poids (g)", "Prix (DT)", "Prix régulier (DT)", "Prix au kg (DT)", "Magasins en stock", "Magasins en remise", "Lien"]];
   for (const {p, s} of avec) for (const [j, v] of s)
     histo.push([j, D.enseignes[p.e] || p.e, CATS[p.c] || p.c, p.m || "", p.n, p.g ?? "", v[0], v[1] ?? "", p.g ? Math.round(v[0] / p.g * 1000 * 1000) / 1000 : "", v[2] ?? "", v[3] ?? "", p.u || ""]);
-  const remises = [["Produit", "Marque", "Magasin", "Famille", "Poids (g)", "Prix habituel (DT)", "Prix remisé (DT)", "Économie (DT)", "Remise (%)", "Début", "Début connu", "Fin", "En cours", "Sorte", "Jours"]];
+  const remises = [["Produit", "Marque", "Magasin", "Famille", "Poids (g)", "Prix habituel (DT)", "Prix remisé (DT)", "Économie (DT)", "Remise (%)", "Début", "Début connu", "Fin", "En cours", "Type de remise", "Jours"]];
   for (const r of rem) remises.push([r.nom, r.marque || "", D.enseignes[r.enseigne] || r.enseigne, CATS[r.categorie] || r.categorie, r.poids_g ?? "", r.prix_habituel, r.prix_remise, r.montant ?? "",
-    Math.round(r.taux * 1000) / 10, r.debut, r.debut_connu === false ? "non (déjà là au 1er relevé)" : "oui", r.fin, r.en_cours ? "oui" : "non", r.sorte === "annoncee" ? "prix barré par le magasin" : "constatée dans l'historique", r.jours]);
+    r.taux == null ? "" : Math.round(r.taux * 1000) / 10, r.debut, r.debut_connu === false ? "non (déjà là au 1er relevé)" : "oui", r.fin, r.en_cours ? "oui" : "non", typeRem(r), r.jours]);
   const A = window.SNACKS_ANALYSE;
   const marques = [["Marque", "Remises", "En cours", "Lancements connus", "Remise moyenne (%)", "Plus forte (%)", "Économie moyenne (DT)", "Magasins", "Du", "Au"]];
   for (const x of A.parMarque(rem)) marques.push([x.marque || "(marque non lue)", x.n, x.en_cours, x.lancements, Math.round(x.taux_moyen * 1000) / 10, Math.round(x.taux_max * 1000) / 10,

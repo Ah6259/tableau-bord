@@ -51,15 +51,15 @@
     for (const r of remises) {
       const k = r.marque || "";
       const x = M.get(k) || {marque: k, n: 0, en_cours: 0, taux: [], montants: [], enseignes: new Set(), debut: r.debut, fin: r.fin, lancements: 0};
-      x.n++; if (r.en_cours) x.en_cours++; x.taux.push(r.taux || 0); if (r.montant != null) x.montants.push(r.montant);
+      x.n++; if (r.en_cours) x.en_cours++; if (r.taux != null) x.taux.push(r.taux); if (r.montant != null) x.montants.push(r.montant);
       x.enseignes.add(r.enseigne); if (r.debut < x.debut) x.debut = r.debut; if (r.fin > x.fin) x.fin = r.fin; if (r.debut_connu !== false) x.lancements++;
       M.set(k, x);
     }
     return [...M.values()].map(x => ({marque: x.marque, n: x.n, en_cours: x.en_cours, lancements: x.lancements,
-      taux_moyen: x.taux.reduce((a, b) => a + b, 0) / x.taux.length, taux_max: Math.max(...x.taux),
+      taux_moyen: x.taux.length ? x.taux.reduce((a, b) => a + b, 0) / x.taux.length : null, taux_max: x.taux.length ? Math.max(...x.taux) : null,   // offre sans % écrit : pas comptée dans les %
       montant_moyen: x.montants.length ? x.montants.reduce((a, b) => a + b, 0) / x.montants.length : null,
       enseignes: [...x.enseignes].sort(), debut: x.debut, fin: x.fin}))
-      .sort((x, y) => (x.marque === "") - (y.marque === "") || y.n - x.n || y.taux_max - x.taux_max);
+      .sort((x, y) => (x.marque === "") - (y.marque === "") || y.n - x.n || (y.taux_max ?? 0) - (x.taux_max ?? 0));
   }
 
   // prix au kilo d'un produit un jour donné (null sans poids lu)

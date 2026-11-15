@@ -30,6 +30,7 @@ button:disabled{opacity:.5;cursor:default}
 .filtres .actions{grid-column:1/-1;display:flex;justify-content:space-between;align-items:center;gap:10px;font-size:13px;color:var(--doux)}
 @media (max-width:760px){.filtres{grid-template-columns:1fr 1fr;padding:10px 12px}}
 .chiffres{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-top:14px}
+.types-rem{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin:6px 0 10px}.types-rem span{color:var(--doux);font-size:13px}
 .sommaire{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:12px}.sommaire span{color:var(--doux);font-size:13px;margin-right:2px}
 .chiffres .carte{padding:12px 14px}.chiffres b{display:block;font-size:24px}.chiffres span{color:var(--doux);font-size:13px}
 button.carte.clic{font:inherit;color:var(--texte);text-align:left;cursor:pointer;transition:border-color .15s,transform .15s}
@@ -70,7 +71,7 @@ details.comment li{margin:4px 0}
  table.cartes tr.det td::before{content:none}
 }
 @media print{
- .filtres,.boutons,button,details.comment,#entree,.sommaire,.vers-sommaire{display:none!important}
+ .filtres,.boutons,button,details.comment,#entree,.sommaire,.vers-sommaire,.types-rem{display:none!important}
  button.c{display:inline-block!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
  body{background:#fff;color:#000}.carte{border-color:#ccc}
  h2{page-break-after:avoid}tr{page-break-inside:avoid}

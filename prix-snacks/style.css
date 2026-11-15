@@ -40,7 +40,7 @@ button.carte.clic{font:inherit;color:var(--texte);text-align:left;cursor:pointer
 button.carte.clic:hover,button.carte.clic:focus-visible{border-color:var(--bleu);outline:none;transform:translateY(-1px)}
 button.carte.clic span::after{content:" ›";color:var(--bleu)}
 h2 .sec{margin-left:10px;vertical-align:middle;font-weight:400}
-h2.eclair{animation:eclair 1.6s}@keyframes eclair{0%{background:var(--bleuf)}100%{background:transparent}}
+h2.eclair,.section.eclair{animation:eclair 1.6s}@keyframes eclair{0%{background:var(--bleuf)}100%{background:transparent}}
 .boite{overflow-x:auto}
 table{width:100%;border-collapse:collapse;font-size:14px}
 th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--ligne);vertical-align:top}
@@ -78,6 +78,7 @@ details.comment li{margin:4px 0}
  button.c{display:inline-block!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
  body{background:#fff;color:#000}.carte{border-color:#ccc}
  h2{page-break-after:avoid}tr{page-break-inside:avoid}
+ details.section>summary::before,details.section>summary .compte{display:none!important}
  .rapport-titre{display:block!important}
 }
 .rapport-titre{display:none}
@@ -120,3 +121,16 @@ button.c{cursor:pointer}
 .c0{background:var(--cal0)}.c1{background:var(--cal1);color:var(--calt1)}.c2{background:var(--cal2);color:var(--calt2)}.c3{background:var(--cal3);color:var(--calt3)}
 .cal-legende{display:flex;align-items:center;gap:6px 14px;flex-wrap:wrap;margin:8px 0}.cal-legende span{display:inline-flex;align-items:center;gap:5px;white-space:nowrap}.cal-legende .c{width:14px;height:14px}
 .note-recul{background:var(--orangef);color:var(--orange);border-radius:8px;padding:8px 12px;margin:8px 0;font-size:13px}
+
+/* ---- parties repliées par défaut (Ahmed, 15/11/2026 : « compactes, plus faciles à lire ») ---- */
+details.section{margin-top:10px;scroll-margin-top:12px}
+details.section>summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:10px;padding:12px 14px;min-height:48px;border-radius:12px}
+details.section>summary::-webkit-details-marker{display:none}
+details.section>summary::before{content:"▸";color:var(--bleu);font-size:15px;flex:none;transition:transform .15s}
+details.section[open]>summary::before{transform:rotate(90deg)}
+details.section>summary h2{margin:0;font-size:16px;flex:1;min-width:0}
+details.section>summary .compte{flex:none;font-size:12px;font-weight:600;color:var(--bleu);background:var(--bleuf);border-radius:99px;padding:2px 9px;white-space:nowrap}
+details.section>summary:hover{background:var(--fond)}
+details.section[open]>summary{border-bottom:1px solid var(--ligne);border-radius:12px 12px 0 0}
+details.section>.corps{padding:8px 14px 14px;min-width:0}
+details.section h3{font-size:15px;margin:16px 0 6px}

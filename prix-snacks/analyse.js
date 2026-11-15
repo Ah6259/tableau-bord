@@ -71,5 +71,29 @@
   }
   function courbeProduit(p, jours) { return jours.map(j => [j, prixKg(p, j), p.p[j] ? !!p.p[j][3] || p.p[j][1] > p.p[j][0] + 0.0005 : false]).filter(x => x[1] != null); }
 
-  window.SNACKS_ANALYSE = {calendrier, lancements, quiSuitQui, parMarque, courbeMarque, courbeProduit, mediane, prixKg, ecart, jourSuivant};
+  // Nouveautés (demande du frère d'Ahmed, 15/11/2026 : « y a-t-il une nouvelle marque ou un nouveau produit sur le marché ? ») :
+  //  - un produit est NOUVEAU quand son premier jour de prix est APRÈS le premier relevé de son magasin (ce qui était déjà là au
+  //    premier relevé d'un magasin n'est jamais une nouveauté : Elsabuy, lu à partir du 15/11, ne compte pas tout son rayon) ;
+  //  - une marque est NOUVELLE quand aucun de ses produits n'était là au premier relevé de son magasin, dans AUCUN magasin ;
+  //  - une marque connue ailleurs mais nouvelle dans un magasin est « nouvelle dans ce magasin ».
+  // Calcul fait sur TOUS les produits (jamais sur la liste filtrée : un filtre ne change pas ce qui est nouveau).
+  function premierJour(p) { let j = null; for (const k in p.p) if (p.p[k] && (j === null || k < j)) j = k; return j; }
+  function nouveautes(produits) {
+    const debut = new Map();                               // magasin -> premier jour relevé
+    for (const p of produits) { const j = premierJour(p); if (j && (!debut.has(p.e) || j < debut.get(p.e))) debut.set(p.e, j); }
+    const connue = new Map();                              // marque -> magasins où elle était là au premier relevé
+    for (const p of produits) { const j = premierJour(p); if (p.m && j && j === debut.get(p.e)) { const s = connue.get(p.m) || new Set(); s.add(p.e); connue.set(p.m, s); } }
+    const items = [], marques = new Map();
+    for (const p of produits) {
+      const j = premierJour(p); if (!j || j === debut.get(p.e)) continue;
+      const mNouvelle = !!p.m && !connue.has(p.m), mMagasin = !!p.m && !mNouvelle && !connue.get(p.m).has(p.e);
+      items.push({p, jour: j, marque_nouvelle: mNouvelle, marque_nouvelle_magasin: mMagasin});
+      if (mNouvelle) { const x = marques.get(p.m) || {marque: p.m, jour: j, enseigne: p.e, enseignes: new Set(), produits: 0};
+        x.produits++; x.enseignes.add(p.e); if (j < x.jour) { x.jour = j; x.enseigne = p.e; } marques.set(p.m, x); }
+    }
+    items.sort((a, b) => b.jour.localeCompare(a.jour) || (a.p.m || "zzz").localeCompare(b.p.m || "zzz", "fr") || a.p.n.localeCompare(b.p.n, "fr"));
+    return {debut, produits: items, marques: [...marques.values()].map(x => ({...x, enseignes: [...x.enseignes].sort()})).sort((a, b) => b.jour.localeCompare(a.jour) || a.marque.localeCompare(b.marque, "fr"))};
+  }
+
+  window.SNACKS_ANALYSE = {calendrier, lancements, quiSuitQui, parMarque, courbeMarque, courbeProduit, mediane, prixKg, ecart, jourSuivant, premierJour, nouveautes};
 })();

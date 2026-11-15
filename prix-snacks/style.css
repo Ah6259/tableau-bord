@@ -75,3 +75,38 @@ details.comment li{margin:4px 0}
  .rapport-titre{display:block!important}
 }
 .rapport-titre{display:none}
+/* ---- concurrence (15/11/2026) : couleurs des courbes = palette catégorielle validée (ordre fixe, la couleur suit l'élément) ---- */
+:root{--s1:#2a78d6;--s2:#eb6834;--s3:#1baf7a;--s4:#eda100;--s5:#e87ba4;--s6:#008300;--cal1:#bcd4f3;--cal2:#6fa3e6;--cal3:#1d5fb8;--cal0:#e9edf2}
+@media (prefers-color-scheme:dark){:root{--s1:#3987e5;--s2:#d95926;--s3:#199e70;--s4:#c98500;--s5:#d55181;--s6:#0ca30c;--cal1:#1f3a63;--cal2:#2f63ad;--cal3:#6ea6f0;--cal0:#222b36}}
+.bloc-courbe{padding:12px 14px}
+.puces{display:flex;flex-wrap:wrap;gap:6px;margin:10px 0}
+.puce{padding:5px 10px;border-radius:99px}
+.puce[aria-pressed=true]{background:var(--bleuf);color:var(--bleu);border-color:var(--bleu);font-weight:600}
+.legende{display:flex;flex-wrap:wrap;gap:6px 14px;margin:6px 0;font-size:13px}
+.leg{display:inline-flex;align-items:center;gap:5px}
+.leg i{width:12px;height:12px;border-radius:3px;display:inline-block;flex:none}
+.leg i.s1{background:var(--s1)}.leg i.s2{background:var(--s2)}.leg i.s3{background:var(--s3)}.leg i.s4{background:var(--s4)}.leg i.s5{background:var(--s5)}.leg i.s6{background:var(--s6)}
+.retirer{background:none;border:1px solid var(--ligne);color:var(--doux);padding:0 7px;border-radius:99px;font-size:13px;line-height:18px}
+.msg-courbe{color:var(--orange);font-size:13px;margin:4px 0}
+svg.courbe{max-width:100%;height:auto;display:block;touch-action:pan-y;margin-top:4px}
+svg.courbe .grille{stroke:var(--ligne);stroke-width:1}
+svg.courbe .axe{fill:var(--doux);font-size:12px}
+svg.courbe .ligne{fill:none;stroke-width:2;stroke-linejoin:round;stroke-linecap:round}
+svg.courbe .ligne.s1{stroke:var(--s1)}svg.courbe .ligne.s2{stroke:var(--s2)}svg.courbe .ligne.s3{stroke:var(--s3)}svg.courbe .ligne.s4{stroke:var(--s4)}svg.courbe .ligne.s5{stroke:var(--s5)}svg.courbe .ligne.s6{stroke:var(--s6)}
+svg.courbe .point{stroke:var(--carte);stroke-width:2}
+svg.courbe .point.s1{fill:var(--s1)}svg.courbe .point.s2{fill:var(--s2)}svg.courbe .point.s3{fill:var(--s3)}svg.courbe .point.s4{fill:var(--s4)}svg.courbe .point.s5{fill:var(--s5)}svg.courbe .point.s6{fill:var(--s6)}
+svg.courbe .curseur{stroke:var(--doux);stroke-width:1;stroke-dasharray:3 3}
+svg.courbe .zone{fill:transparent;cursor:crosshair}
+#courbe-info{min-height:20px;margin-top:4px}#courbe-info .leg{margin-right:10px}
+button.mini{padding:2px 6px;font-size:13px;vertical-align:middle}
+button.mini[aria-pressed=true]{background:var(--bleuf);border-color:var(--bleu)}
+tr.marque-ligne{cursor:pointer}tr.marque-ligne:hover td{background:var(--fond)}
+table.cal{border-collapse:separate;border-spacing:2px;width:auto}
+table.cal th,table.cal td{padding:0;border:0}
+table.cal th.jour{font-size:10px;font-weight:500;color:var(--doux);writing-mode:vertical-rl;transform:rotate(180deg);height:42px;text-transform:none;letter-spacing:0}
+table.cal th.nom{text-align:right;padding-right:8px;font-size:12px;font-weight:600;white-space:nowrap;max-width:140px;overflow:hidden;text-overflow:ellipsis;text-transform:none;letter-spacing:0;color:var(--texte)}
+.c{display:inline-block;width:18px;height:18px;border-radius:4px;border:0;padding:0;vertical-align:middle}
+button.c{cursor:pointer}
+.c0{background:var(--cal0)}.c1{background:var(--cal1)}.c2{background:var(--cal2)}.c3{background:var(--cal3)}
+.cal-legende{display:flex;align-items:center;gap:6px 14px;flex-wrap:wrap;margin:8px 0}.cal-legende span{display:inline-flex;align-items:center;gap:5px;white-space:nowrap}.cal-legende .c{width:14px;height:14px}
+.note-recul{background:var(--orangef);color:var(--orange);border-radius:8px;padding:8px 12px;margin:8px 0;font-size:13px}

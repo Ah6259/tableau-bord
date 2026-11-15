@@ -87,8 +87,10 @@ function afficher() {
   const enCours = rem.filter(r => r.en_cours);
   const baisses = avec.filter(x => x.s.length > 1 && x.s[x.s.length - 1][1][0] < x.s[0][1][0] - 0.0005).length;
   const hausses = avec.filter(x => x.s.length > 1 && x.s[x.s.length - 1][1][0] > x.s[0][1][0] + 0.0005).length;
-  const marques = [...new Set(D.produits.filter(p => (!F.cat || p.c === F.cat) && (!F.ens || p.e === F.ens)).map(p => p.m).filter(Boolean))].sort((x, y) => x.localeCompare(y, "fr"));
-  const nbGram = Object.fromEntries(GRAMMAGES.map(([k]) => [k, D.produits.filter(p => produitPasseSauf(p, "gram") && grammage(p) === k).length]));
+  const marques = [...new Set(D.produits.filter(p => produitPasseSauf(p, "marque") && p.m).map(p => p.m))].sort((x, y) => x.localeCompare(y, "fr"));
+  const nb = (sauf, f) => D.produits.filter(p => produitPasseSauf(p, sauf) && f(p)).length;
+  const nbGram = Object.fromEntries(GRAMMAGES.map(([k]) => [k, nb("gram", p => grammage(p) === k)]));
+  const actifs = ["cat", "ens", "marque", "gram", "q"].filter(k => F[k]).length;
   // une enseigne qui n'a pas répondu à UN passage n'est pas « en panne » (règle § 51) : ses derniers prix lus restent, la date le dit ;
   // « en panne » seulement si aucune lecture réussie depuis plus de 2 jours
   const ageJ = j => j ? Math.round((Date.parse(D.genere) - Date.parse(j)) / 864e5) : 99;
@@ -104,11 +106,12 @@ function afficher() {
     <label>Durée <select id="f-periode">${[["7", "7 derniers jours"], ["30", "30 derniers jours"], ["90", "90 derniers jours"], ["tout", "Tout l’historique"], ["perso", "Dates au choix"]].map(([v, t]) => `<option value="${v}"${F.periode === v ? " selected" : ""}>${t}</option>`).join("")}</select></label>
     <label${F.periode === "perso" ? "" : " hidden"}>Du <input type="date" id="f-de" value="${esc(F.de || de)}" min="${D.jours[0]}" max="${D.jours[D.jours.length - 1]}"></label>
     <label${F.periode === "perso" ? "" : " hidden"}>Au <input type="date" id="f-a" value="${esc(F.a || a)}" min="${D.jours[0]}" max="${D.jours[D.jours.length - 1]}"></label>
-    <label>Produit <select id="f-cat"><option value="">Tous</option>${Object.entries(CATS).map(([v, t]) => `<option value="${v}"${F.cat === v ? " selected" : ""}>${t}</option>`).join("")}</select></label>
-    <label>Magasin <select id="f-ens"><option value="">Tous</option>${Object.entries(D.enseignes).map(([v, t]) => `<option value="${v}"${F.ens === v ? " selected" : ""}>${t}</option>`).join("")}</select></label>
-    <label>Marque <select id="f-marque"><option value="">Toutes</option>${marques.map(m => `<option value="${esc(m)}"${F.marque === m ? " selected" : ""}>${esc(m)}</option>`).join("")}</select></label>
+    <label>Produit <select id="f-cat"><option value="">Tous (${nb("cat", () => true)})</option>${Object.entries(CATS).map(([v, t]) => `<option value="${v}"${F.cat === v ? " selected" : ""}>${t} (${nb("cat", p => p.c === v)})</option>`).join("")}</select></label>
+    <label>Magasin <select id="f-ens"><option value="">Tous (${nb("ens", () => true)})</option>${Object.entries(D.enseignes).map(([v, t]) => `<option value="${v}"${F.ens === v ? " selected" : ""}>${t} (${nb("ens", p => p.e === v)})</option>`).join("")}</select></label>
+    <label>Marque <select id="f-marque"><option value="">Toutes (${marques.length})</option>${marques.map(m => `<option value="${esc(m)}"${F.marque === m ? " selected" : ""}>${esc(m)} (${nb("marque", p => p.m === m)})</option>`).join("")}</select></label>
     <label>Grammage <select id="f-gram"><option value="">Tous</option>${GRAMMAGES.map(([v, t]) => `<option value="${v}"${F.gram === v ? " selected" : ""}>${t} (${nbGram[v]})</option>`).join("")}</select></label>
-    <label>Chercher <input type="search" id="f-q" value="${esc(F.q)}" placeholder="nom, marque…"></label>
+    <label class="large">Chercher <input type="search" id="f-q" value="${esc(F.q)}" placeholder="un mot du nom, une marque, un parfum…"></label>
+    <div class="actions"><span>${actifs ? `${actifs} filtre${actifs > 1 ? "s" : ""} actif${actifs > 1 ? "s" : ""} · ${avec.length} produit${avec.length > 1 ? "s" : ""}` : "Aucun filtre : tous les produits"}</span>${actifs ? `<button class="sec" id="effacer">✕ Effacer les filtres</button>` : ""}</div>
   </div>
   <div class="chiffres">
     <div class="carte"><b>${avec.length}</b><span>produits suivis</span></div>
@@ -171,6 +174,7 @@ function brancher(avec, rem, b) {
   for (const id of ["#f-periode", "#f-de", "#f-a", "#f-cat", "#f-ens", "#f-marque", "#f-gram"]) $(id)?.addEventListener("change", maj);
   let t; $("#f-q").addEventListener("input", () => { clearTimeout(t); t = setTimeout(maj, 300); });
   $("#tout")?.addEventListener("click", () => { toutVoir = true; afficher(); });
+  $("#effacer")?.addEventListener("click", () => { F = {...F, cat: "", ens: "", marque: "", gram: "", q: ""}; toutVoir = false; afficher(); });
   $("#t-prod")?.addEventListener("click", e => {
     const tr = e.target.closest("tr.prod"); if (!tr || e.target.closest("a")) return;
     ouverts.has(tr.dataset.id) ? ouverts.delete(tr.dataset.id) : ouverts.add(tr.dataset.id); afficher();

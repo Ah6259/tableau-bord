@@ -31,6 +31,11 @@ button:disabled{opacity:.5;cursor:default}
 @media (max-width:760px){.filtres{grid-template-columns:1fr 1fr;padding:10px 12px}}
 .chiffres{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-top:14px}
 .chiffres .carte{padding:12px 14px}.chiffres b{display:block;font-size:24px}.chiffres span{color:var(--doux);font-size:13px}
+button.carte.clic{font:inherit;color:var(--texte);text-align:left;cursor:pointer;transition:border-color .15s,transform .15s}
+button.carte.clic:hover,button.carte.clic:focus-visible{border-color:var(--bleu);outline:none;transform:translateY(-1px)}
+button.carte.clic span::after{content:" ›";color:var(--bleu)}
+h2 .sec{margin-left:10px;vertical-align:middle;font-weight:400}
+h2.eclair{animation:eclair 1.6s}@keyframes eclair{0%{background:var(--bleuf)}100%{background:transparent}}
 .boite{overflow-x:auto}
 table{width:100%;border-collapse:collapse;font-size:14px}
 th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--ligne);vertical-align:top}

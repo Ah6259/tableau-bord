@@ -11,6 +11,8 @@ const lire = k => { try { return localStorage.getItem(k); } catch { return null;
 const ecrire = (k, v) => { try { v == null ? localStorage.removeItem(k) : localStorage.setItem(k, v); } catch {} };
 const CATS = {gaufrettes: "Gaufrettes", biscuits: "Biscuits", chips: "Chips"};
 let D = null, F = {periode: "30", de: "", a: "", cat: "", ens: "", marque: "", gram: "", q: ""}, ouverts = new Set(), toutVoir = false;
+let VUE = "", REM = "";   // cases du haut cliquables (règle d'Ahmed, 15/11/2026) : VUE = "" | "baisse" | "hausse" ; REM = "" | "cours"
+let aller = null;         // section vers laquelle défiler après le prochain affichage
 // Grammage (demande d'Ahmed, 15/11/2026) : tranches de poids lues sur le produit ; un lot de plusieurs sachets est à part ; poids non lu = à part
 const GRAMMAGES = [["portion", "Portion : jusqu’à 30 g", p => p.g != null && p.l === 1 && p.g <= 30], ["31-60", "31 à 60 g", p => p.g != null && p.l === 1 && p.g > 30 && p.g <= 60],
   ["61-120", "61 à 120 g", p => p.g != null && p.l === 1 && p.g > 60 && p.g <= 120], ["121-250", "121 à 250 g", p => p.g != null && p.l === 1 && p.g > 120 && p.g <= 250],
@@ -113,28 +115,32 @@ function afficher() {
     <div class="actions"><span>${actifs ? `${actifs} filtre${actifs > 1 ? "s" : ""} actif${actifs > 1 ? "s" : ""} · ${avec.length} produit${avec.length > 1 ? "s" : ""}` : "Aucun filtre : tous les produits"}</span>${actifs ? `<button class="sec" id="effacer">✕ Effacer les filtres</button>` : ""}</div>
   </div>
   <div class="chiffres">
-    <div class="carte"><b>${avec.length}</b><span>produits suivis</span></div>
-    <div class="carte"><b>${enCours.length}</b><span>remises en cours</span></div>
-    <div class="carte"><b>${rem.length}</b><span>remises sur la durée</span></div>
-    <div class="carte"><b>${baisses}</b><span>prix en baisse sur la durée</span></div>
-    <div class="carte"><b>${hausses}</b><span>prix en hausse sur la durée</span></div>
+    <button class="carte clic" data-aller="produits" data-vue=""><b>${avec.length}</b><span>produits suivis</span></button>
+    <button class="carte clic" data-aller="remises" data-rem="cours"><b>${enCours.length}</b><span>remises en cours</span></button>
+    <button class="carte clic" data-aller="remises" data-rem=""><b>${rem.length}</b><span>remises sur la durée</span></button>
+    <button class="carte clic" data-aller="produits" data-vue="baisse"><b>${baisses}</b><span>prix en baisse sur la durée</span></button>
+    <button class="carte clic" data-aller="produits" data-vue="hausse"><b>${hausses}</b><span>prix en hausse sur la durée</span></button>
   </div>
-  <h2 id="remises">Remises du ${dateFr(de)} au ${dateFr(a)}</h2>`;
-  if (!rem.length) h += `<div class="vide">Aucune remise sur cette durée avec ces filtres.</div>`;
+  <h2 id="remises">${REM === "cours" ? `Remises en cours (${enCours.length})` : `Remises du ${dateFr(de)} au ${dateFr(a)} (${rem.length})`}${REM ? ` <button class="sec" data-rem="">Voir toutes les remises de la durée</button>` : ""}</h2>`;
+  const remAff = REM === "cours" ? enCours : rem;
+  if (!remAff.length) h += `<div class="vide">Aucune remise ${REM === "cours" ? "en cours" : "sur cette durée"} avec ces filtres.</div>`;
   else {
-    rem.sort((x, y) => (y.en_cours - x.en_cours) || (y.taux - x.taux));
+    remAff.sort((x, y) => (y.en_cours - x.en_cours) || (y.taux - x.taux));
     h += `<div class="boite"><table class="cartes"><thead><tr><th>Produit</th><th>Marque</th><th>Magasin</th><th class="n">Prix habituel</th><th class="n">Prix remisé</th><th class="n">Remise</th><th>Début</th><th>Fin</th><th>Sorte</th></tr></thead><tbody>`;
-    for (const r of rem) h += `<tr><td data-l="Produit">${esc(r.nom)}${r.poids_g ? ` <span class="sous">${r.poids_g} g</span>` : ""}</td><td data-l="Marque">${esc(r.marque || "—")}</td>
+    for (const r of remAff) h += `<tr><td data-l="Produit">${esc(r.nom)}${r.poids_g ? ` <span class="sous">${r.poids_g} g</span>` : ""}</td><td data-l="Marque">${esc(r.marque || "—")}</td>
       <td data-l="Magasin">${esc(D.enseignes[r.enseigne] || r.enseigne)}</td><td class="n" data-l="Prix habituel">${dt(r.prix_habituel)}</td><td class="n" data-l="Prix remisé"><b>${dt(r.prix_remise)}</b></td>
       <td class="n" data-l="Remise"><span class="p ok">−${pct(r.taux)}</span></td><td data-l="Début">${dateFr(r.debut)}</td><td data-l="Fin">${r.en_cours ? '<span class="p in">en cours</span>' : dateFr(r.fin)}</td>
       <td data-l="Sorte">${r.sorte === "annoncee" ? "prix barré par le magasin" : "constatée dans l’historique"}</td></tr>`;
     h += `</tbody></table></div>`;
   }
-  h += `<h2 id="produits">Produits et historique des prix</h2>`;
-  if (!avec.length) h += `<div class="vide">Aucun produit relevé sur cette durée avec ces filtres.</div>`;
+  const varDe = x => x.s.length > 1 ? x.s[x.s.length - 1][1][0] / x.s[0][1][0] - 1 : 0;
+  const liste = VUE === "baisse" ? avec.filter(x => varDe(x) < -0.0005).sort((x, y) => varDe(x) - varDe(y))
+    : VUE === "hausse" ? avec.filter(x => varDe(x) > 0.0005).sort((x, y) => varDe(y) - varDe(x))
+    : avec.sort((x, y) => x.p.c.localeCompare(y.p.c) || (x.p.m || "zzz").localeCompare(y.p.m || "zzz", "fr") || x.p.n.localeCompare(y.p.n, "fr"));
+  h += `<h2 id="produits">${VUE === "baisse" ? `Prix en baisse sur la durée (${liste.length}, la plus forte baisse d’abord)` : VUE === "hausse" ? `Prix en hausse sur la durée (${liste.length}, la plus forte hausse d’abord)` : "Produits et historique des prix"}${VUE ? ` <button class="sec" data-vue="">Voir tous les produits</button>` : ""}</h2>`;
+  if (!liste.length) h += `<div class="vide">Aucun produit ${VUE ? "dans ce cas" : "relevé"} sur cette durée avec ces filtres.</div>`;
   else {
-    avec.sort((x, y) => x.p.c.localeCompare(y.p.c) || (x.p.m || "zzz").localeCompare(y.p.m || "zzz", "fr") || x.p.n.localeCompare(y.p.n, "fr"));
-    const visibles = toutVoir ? avec : avec.slice(0, 150);
+    const visibles = toutVoir ? liste : liste.slice(0, 150);
     h += `<div class="boite"><table class="cartes" id="t-prod"><thead><tr><th>Produit</th><th>Marque</th><th>Magasin</th><th>Produit</th><th class="n">Poids</th><th class="n">Dernier prix</th><th class="n">Prix au kg</th><th class="n">Min · max</th><th class="n">Variation</th><th>Évolution</th></tr></thead><tbody>`;
     for (const {p, s} of visibles) {
       const vals = s.map(x => x[1][0]), dern = s[s.length - 1][1], k = p.g ? dern[0] / p.g * 1000 : null;
@@ -147,7 +153,7 @@ function afficher() {
         <div class="sous">${p.e === "carrefour" ? "Prix le plus courant dans les magasins Carrefour qui ont le produit en stock ; " : ""}<a href="${esc(p.u)}" target="_blank" rel="noopener noreferrer">voir le produit sur le site du magasin ↗</a></div></td></tr>`;
     }
     h += `</tbody></table></div>`;
-    if (!toutVoir && avec.length > 150) h += `<p><button class="sec" id="tout">Voir les ${avec.length - 150} autres produits</button></p>`;
+    if (!toutVoir && liste.length > 150) h += `<p><button class="sec" id="tout">Voir les ${liste.length - 150} autres produits</button></p>`;
   }
   h += `<details class="comment carte"><summary>Comment fonctionne ce site ?</summary><ul>
     <li><b>Ce qu’il suit</b> : les gaufrettes, les biscuits et les chips vendus en ligne par Carrefour (carrefour.tn, chaque magasin) et Géant (geantdrive.tn), toutes marques et tous formats.</li>
@@ -155,6 +161,7 @@ function afficher() {
     <li><b>Les robots et leurs horaires (heure de Tunis)</b> : <b>2h37</b> chaque nuit, un seul robot fait tout, dans l’ordre : lecture de Géant (environ 1 minute), lecture de Carrefour magasin par magasin (environ 3 minutes), enregistrement de l’historique, calcul des remises, puis chiffrement et publication de cette page (vers 2h45). Un magasin qui ne répond pas est relu la nuit suivante, ses derniers prix restent. Dernier passage : <b>${esc(D.genere_heure || dateFr(D.genere))}</b>. Rien ne tourne en journée, sauf un lancement à la main.</li>
     <li><b>Historique</b> : chaque prix est gardé jour après jour depuis la mise en service (${dateFr(D.jours[0])}) ; touchez un produit pour voir tous ses prix.</li>
     <li><b>Remises</b> : « prix barré par le magasin » = le site affiche un ancien prix barré (au moins 2 % de moins) ; « constatée dans l’historique » = le prix du jour est au moins ${Math.round((D.seuil || 0.05) * 100)} % sous le prix habituel du produit (médiane des ${D.fenetre || 30} derniers jours, au moins 3 relevés). Chaque remise a sa date de début, sa date de fin (ou « en cours ») et son taux.</li>
+    <li><b>Les cases de chiffres sont des boutons</b> : « produits suivis » ouvre la liste, « remises en cours » et « remises sur la durée » ouvrent les remises, « prix en baisse » et « prix en hausse » montrent ces produits triés par variation.</li>
     <li><b>Durée au choix</b> : 7, 30, 90 jours, tout l’historique ou deux dates ; les chiffres, les remises et les variations se recalculent sur cette durée.</li>
     <li><b>Filtres</b> : produit (gaufrettes, biscuits, chips), magasin, marque, <b>grammage</b> (portion jusqu’à 30 g, 31 à 60 g, 61 à 120 g, 121 à 250 g, plus de 250 g, lots de plusieurs sachets, poids non lu ; le poids est celui écrit par le magasin, un lot « 2 × 70 g » compte 140 g), recherche par mot.</li>
     <li><b>Exporter Excel</b> : un classeur avec l’historique (une ligne par produit, magasin et jour), les remises et la liste des produits, sur la durée et les filtres choisis.</li>
@@ -178,6 +185,11 @@ function brancher(avec, rem, b) {
     const tr = e.target.closest("tr.prod"); if (!tr || e.target.closest("a")) return;
     ouverts.has(tr.dataset.id) ? ouverts.delete(tr.dataset.id) : ouverts.add(tr.dataset.id); afficher();
   });
+  $("#site").querySelectorAll("[data-vue],[data-rem]").forEach(el => el.addEventListener("click", () => {
+    if (el.dataset.vue !== undefined) VUE = el.dataset.vue; if (el.dataset.rem !== undefined) REM = el.dataset.rem;
+    toutVoir = false; aller = el.dataset.aller || (el.dataset.vue !== undefined ? "produits" : "remises"); afficher();
+  }));
+  if (aller) { const cible = $("#" + aller); aller = null; if (cible) { cible.scrollIntoView({behavior: "smooth", block: "start"}); cible.classList.add("eclair"); } }
   $("#sortir").addEventListener("click", () => { ecrire("snacks-code", null); location.reload(); });
   $("#imprimer").addEventListener("click", () => print());
   $("#excel").addEventListener("click", () => exporter(avec, rem, b));

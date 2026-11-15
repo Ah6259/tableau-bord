@@ -70,15 +70,16 @@ details.comment li{margin:4px 0}
  table.cartes tr.det td::before{content:none}
 }
 @media print{
- .filtres,.boutons,button,details.comment,#entree,.sommaire{display:none!important}
+ .filtres,.boutons,button,details.comment,#entree,.sommaire,.vers-sommaire{display:none!important}
+ button.c{display:inline-block!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
  body{background:#fff;color:#000}.carte{border-color:#ccc}
  h2{page-break-after:avoid}tr{page-break-inside:avoid}
  .rapport-titre{display:block!important}
 }
 .rapport-titre{display:none}
 /* ---- concurrence (15/11/2026) : couleurs des courbes = palette catégorielle validée (ordre fixe, la couleur suit l'élément) ---- */
-:root{--s1:#2a78d6;--s2:#eb6834;--s3:#1baf7a;--s4:#eda100;--s5:#e87ba4;--s6:#008300;--cal1:#bcd4f3;--cal2:#6fa3e6;--cal3:#1d5fb8;--cal0:#e9edf2}
-@media (prefers-color-scheme:dark){:root{--s1:#3987e5;--s2:#d95926;--s3:#199e70;--s4:#c98500;--s5:#d55181;--s6:#0ca30c;--cal1:#1f3a63;--cal2:#2f63ad;--cal3:#6ea6f0;--cal0:#222b36}}
+:root{--s1:#2a78d6;--s2:#eb6834;--s3:#1baf7a;--s4:#eda100;--s5:#e87ba4;--s6:#008300;--cal1:#fde7a8;--cal2:#f5a524;--cal3:#c2410c;--cal0:#e9edf2;--calt1:#5b3d00;--calt2:#2e1b00;--calt3:#fff}
+@media (prefers-color-scheme:dark){:root{--s1:#3987e5;--s2:#d95926;--s3:#199e70;--s4:#c98500;--s5:#d55181;--s6:#0ca30c;--cal1:#4a3c14;--cal2:#9c5a06;--cal3:#f87171;--cal0:#222b36;--calt1:#f7dfa0;--calt2:#fff4e0;--calt3:#1a0700}}
 .bloc-courbe{padding:12px 14px}
 .puces{display:flex;flex-wrap:wrap;gap:6px;margin:10px 0}
 .puce{padding:5px 10px;border-radius:99px}
@@ -107,7 +108,11 @@ table.cal th,table.cal td{padding:0;border:0}
 table.cal th.jour{font-size:10px;font-weight:500;color:var(--doux);writing-mode:vertical-rl;transform:rotate(180deg);height:42px;text-transform:none;letter-spacing:0}
 table.cal th.nom{text-align:right;padding-right:8px;font-size:12px;font-weight:600;white-space:nowrap;max-width:140px;overflow:hidden;text-overflow:ellipsis;text-transform:none;letter-spacing:0;color:var(--texte)}
 .c{display:inline-block;width:18px;height:18px;border-radius:4px;border:0;padding:0;vertical-align:middle}
+table.cal .c{width:32px;height:24px;font:700 12px/24px system-ui,sans-serif;text-align:center}
+table.cal th.nom{position:sticky;left:0;z-index:1;background:var(--fond)}
+#site{padding-bottom:64px}
+.vers-sommaire{position:fixed;right:14px;bottom:18px;z-index:20;padding:10px 14px;border-radius:999px;border:1px solid var(--bleu);background:var(--bleu);color:var(--carte);font-weight:600;box-shadow:0 2px 8px rgba(0,0,0,.25)}
 button.c{cursor:pointer}
-.c0{background:var(--cal0)}.c1{background:var(--cal1)}.c2{background:var(--cal2)}.c3{background:var(--cal3)}
+.c0{background:var(--cal0)}.c1{background:var(--cal1);color:var(--calt1)}.c2{background:var(--cal2);color:var(--calt2)}.c3{background:var(--cal3);color:var(--calt3)}
 .cal-legende{display:flex;align-items:center;gap:6px 14px;flex-wrap:wrap;margin:8px 0}.cal-legende span{display:inline-flex;align-items:center;gap:5px;white-space:nowrap}.cal-legende .c{width:14px;height:14px}
 .note-recul{background:var(--orangef);color:var(--orange);border-radius:8px;padding:8px 12px;margin:8px 0;font-size:13px}

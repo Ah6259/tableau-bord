@@ -10,7 +10,12 @@ const dateFr = j => j ? j.slice(8, 10) + "/" + j.slice(5, 7) + "/" + j.slice(0, 
 const lire = k => { try { return localStorage.getItem(k); } catch { return null; } };
 const ecrire = (k, v) => { try { v == null ? localStorage.removeItem(k) : localStorage.setItem(k, v); } catch {} };
 const CATS = {gaufrettes: "Gaufrettes", biscuits: "Biscuits", chips: "Chips"};
-let D = null, F = {periode: "30", de: "", a: "", cat: "", ens: "", marque: "", q: ""}, ouverts = new Set(), toutVoir = false;
+let D = null, F = {periode: "30", de: "", a: "", cat: "", ens: "", marque: "", gram: "", q: ""}, ouverts = new Set(), toutVoir = false;
+// Grammage (demande d'Ahmed, 15/11/2026) : tranches de poids lues sur le produit ; un lot de plusieurs sachets est à part ; poids non lu = à part
+const GRAMMAGES = [["portion", "Portion : jusqu’à 30 g", p => p.g != null && p.l === 1 && p.g <= 30], ["31-60", "31 à 60 g", p => p.g != null && p.l === 1 && p.g > 30 && p.g <= 60],
+  ["61-120", "61 à 120 g", p => p.g != null && p.l === 1 && p.g > 60 && p.g <= 120], ["121-250", "121 à 250 g", p => p.g != null && p.l === 1 && p.g > 120 && p.g <= 250],
+  ["250+", "Plus de 250 g", p => p.g != null && p.l === 1 && p.g > 250], ["lot", "Lots de plusieurs sachets", p => p.l > 1], ["inconnu", "Poids non lu", p => p.g == null]];
+const grammage = p => (GRAMMAGES.find(([, , f]) => f(p)) || [""])[0];
 
 async function dechiffrer(texte, code) {
   const b = Uint8Array.from(atob(texte.trim()), c => c.charCodeAt(0));
@@ -50,9 +55,11 @@ function produitPasse(p) {
   if (F.cat && p.c !== F.cat) return false;
   if (F.ens && p.e !== F.ens) return false;
   if (F.marque && p.m !== F.marque) return false;
+  if (F.gram && grammage(p) !== F.gram) return false;
   if (F.q) { const t = (p.n + " " + p.m).toLowerCase(); if (!F.q.toLowerCase().split(/\s+/).every(m => t.includes(m))) return false; }
   return true;
 }
+function produitPasseSauf(p, sauf) { const g = F[sauf]; F[sauf] = ""; const r = produitPasse(p); F[sauf] = g; return r; }
 function serie(p, b) { return D.jours.filter(j => dansPeriode(j, b) && p.p[j]).map(j => [j, p.p[j]]); }
 
 // ---------- affichage
@@ -81,12 +88,18 @@ function afficher() {
   const baisses = avec.filter(x => x.s.length > 1 && x.s[x.s.length - 1][1][0] < x.s[0][1][0] - 0.0005).length;
   const hausses = avec.filter(x => x.s.length > 1 && x.s[x.s.length - 1][1][0] > x.s[0][1][0] + 0.0005).length;
   const marques = [...new Set(D.produits.filter(p => (!F.cat || p.c === F.cat) && (!F.ens || p.e === F.ens)).map(p => p.m).filter(Boolean))].sort((x, y) => x.localeCompare(y, "fr"));
-  const etat = Object.entries(D.etat).map(([k, v]) => `${D.enseignes[k] || k} : ${v.erreur ? '<span class="p ko">en panne</span>' : `${v.offres} produits le ${dateFr(v.date)}`}`).join(" · ");
+  const nbGram = Object.fromEntries(GRAMMAGES.map(([k]) => [k, D.produits.filter(p => produitPasseSauf(p, "gram") && grammage(p) === k).length]));
+  // une enseigne qui n'a pas répondu à UN passage n'est pas « en panne » (règle § 51) : ses derniers prix lus restent, la date le dit ;
+  // « en panne » seulement si aucune lecture réussie depuis plus de 2 jours
+  const ageJ = j => j ? Math.round((Date.parse(D.genere) - Date.parse(j)) / 864e5) : 99;
+  const etat = Object.entries(D.etat).map(([k, v]) => `${D.enseignes[k] || k} : ${!v.erreur ? `${v.offres} produits le ${dateFr(v.date)}`
+    : ageJ(v.reussite) <= 2 ? `prix du ${dateFr(v.reussite)} <span class="sous">(pas de réponse le ${dateFr(v.date)}, nouvel essai la nuit prochaine)</span>`
+    : `<span class="p ko">en panne depuis le ${dateFr(v.reussite)}</span>`}`).join(" · ");
   let h = `<div class="haut"><div><h1>Prix des gaufrettes, biscuits et chips</h1>
     <div class="sous">Relevés du ${dateFr(D.jours[0])} au ${dateFr(D.jours[D.jours.length - 1])} (${D.jours.length} relevé${D.jours.length > 1 ? "s" : ""}, un chaque nuit) · ${etat}</div></div>
     <div class="boutons"><button class="sec" id="excel">⬇ Exporter Excel</button><button class="sec" id="imprimer">🖨 Rapport (PDF)</button>
     <button class="sec" id="sortir">Fermer${lire("snacks-code") ? " et oublier le code" : ""}</button></div></div>
-  <div class="rapport-titre sous">Rapport du ${dateFr(de)} au ${dateFr(a)} · ${F.cat ? CATS[F.cat] : "gaufrettes, biscuits et chips"}${F.ens ? " · " + D.enseignes[F.ens] : ""}${F.marque ? " · " + esc(F.marque) : ""}</div>
+  <div class="rapport-titre sous">Rapport du ${dateFr(de)} au ${dateFr(a)} · ${F.cat ? CATS[F.cat] : "gaufrettes, biscuits et chips"}${F.ens ? " · " + D.enseignes[F.ens] : ""}${F.marque ? " · " + esc(F.marque) : ""}${F.gram ? " · " + GRAMMAGES.find(([k]) => k === F.gram)[1] : ""}</div>
   <div class="filtres carte">
     <label>Durée <select id="f-periode">${[["7", "7 derniers jours"], ["30", "30 derniers jours"], ["90", "90 derniers jours"], ["tout", "Tout l’historique"], ["perso", "Dates au choix"]].map(([v, t]) => `<option value="${v}"${F.periode === v ? " selected" : ""}>${t}</option>`).join("")}</select></label>
     <label${F.periode === "perso" ? "" : " hidden"}>Du <input type="date" id="f-de" value="${esc(F.de || de)}" min="${D.jours[0]}" max="${D.jours[D.jours.length - 1]}"></label>
@@ -94,6 +107,7 @@ function afficher() {
     <label>Produit <select id="f-cat"><option value="">Tous</option>${Object.entries(CATS).map(([v, t]) => `<option value="${v}"${F.cat === v ? " selected" : ""}>${t}</option>`).join("")}</select></label>
     <label>Magasin <select id="f-ens"><option value="">Tous</option>${Object.entries(D.enseignes).map(([v, t]) => `<option value="${v}"${F.ens === v ? " selected" : ""}>${t}</option>`).join("")}</select></label>
     <label>Marque <select id="f-marque"><option value="">Toutes</option>${marques.map(m => `<option value="${esc(m)}"${F.marque === m ? " selected" : ""}>${esc(m)}</option>`).join("")}</select></label>
+    <label>Grammage <select id="f-gram"><option value="">Tous</option>${GRAMMAGES.map(([v, t]) => `<option value="${v}"${F.gram === v ? " selected" : ""}>${t} (${nbGram[v]})</option>`).join("")}</select></label>
     <label>Chercher <input type="search" id="f-q" value="${esc(F.q)}" placeholder="nom, marque…"></label>
   </div>
   <div class="chiffres">
@@ -139,7 +153,7 @@ function afficher() {
     <li><b>Historique</b> : chaque prix est gardé jour après jour depuis la mise en service (${dateFr(D.jours[0])}) ; touchez un produit pour voir tous ses prix.</li>
     <li><b>Remises</b> : « prix barré par le magasin » = le site affiche un ancien prix barré (au moins 2 % de moins) ; « constatée dans l’historique » = le prix du jour est au moins ${Math.round((D.seuil || 0.05) * 100)} % sous le prix habituel du produit (médiane des ${D.fenetre || 30} derniers jours, au moins 3 relevés). Chaque remise a sa date de début, sa date de fin (ou « en cours ») et son taux.</li>
     <li><b>Durée au choix</b> : 7, 30, 90 jours, tout l’historique ou deux dates ; les chiffres, les remises et les variations se recalculent sur cette durée.</li>
-    <li><b>Filtres</b> : produit (gaufrettes, biscuits, chips), magasin, marque, recherche par mot.</li>
+    <li><b>Filtres</b> : produit (gaufrettes, biscuits, chips), magasin, marque, <b>grammage</b> (portion jusqu’à 30 g, 31 à 60 g, 61 à 120 g, 121 à 250 g, plus de 250 g, lots de plusieurs sachets, poids non lu ; le poids est celui écrit par le magasin, un lot « 2 × 70 g » compte 140 g), recherche par mot.</li>
     <li><b>Exporter Excel</b> : un classeur avec l’historique (une ligne par produit, magasin et jour), les remises et la liste des produits, sur la durée et les filtres choisis.</li>
     <li><b>Rapport (PDF)</b> : imprime la page telle qu’elle est filtrée (le téléphone ou l’ordinateur propose « Enregistrer en PDF »).</li>
     <li><b>Ce qui n’est pas compté</b> : les cakes, gâteaux, muffins, barres de céréales et tout produit dont le nom ne dit pas clairement gaufrette, biscuit ou chips (rien n’est deviné). Une marque n’est écrite que si le magasin l’écrit ou si elle est connue.</li>
@@ -152,8 +166,8 @@ function afficher() {
 }
 
 function brancher(avec, rem, b) {
-  const maj = () => { F.periode = $("#f-periode").value; F.de = $("#f-de")?.value || ""; F.a = $("#f-a")?.value || ""; F.cat = $("#f-cat").value; F.ens = $("#f-ens").value; F.marque = $("#f-marque").value; F.q = $("#f-q").value.trim(); toutVoir = false; afficher(); };
-  for (const id of ["#f-periode", "#f-de", "#f-a", "#f-cat", "#f-ens", "#f-marque"]) $(id)?.addEventListener("change", maj);
+  const maj = () => { F.periode = $("#f-periode").value; F.de = $("#f-de")?.value || ""; F.a = $("#f-a")?.value || ""; F.cat = $("#f-cat").value; F.ens = $("#f-ens").value; F.marque = $("#f-marque").value; F.gram = $("#f-gram").value; F.q = $("#f-q").value.trim(); toutVoir = false; afficher(); };
+  for (const id of ["#f-periode", "#f-de", "#f-a", "#f-cat", "#f-ens", "#f-marque", "#f-gram"]) $(id)?.addEventListener("change", maj);
   let t; $("#f-q").addEventListener("input", () => { clearTimeout(t); t = setTimeout(maj, 300); });
   $("#tout")?.addEventListener("click", () => { toutVoir = true; afficher(); });
   $("#t-prod")?.addEventListener("click", e => {

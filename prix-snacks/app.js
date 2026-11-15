@@ -25,8 +25,11 @@ async function dechiffrer(texte, code) {
 async function ouvrir(code, garder) {
   $("#msg").textContent = "Ouverture…";
   let texte;
-  try { texte = await (await fetch("donnees.bin?t=" + Date.now(), {cache: "no-store"})).text(); }
-  catch { $("#msg").textContent = "Fichier introuvable. Réessayez plus tard."; return; }
+  try {
+    const rep = await fetch("donnees.bin?t=" + Date.now(), {cache: "no-store"});
+    if (!rep.ok) { $("#msg").textContent = "Les prix ne sont pas encore publiés sur cette page (le robot les publie chaque nuit dès que le code est créé)."; return; }
+    texte = await rep.text();
+  } catch { $("#msg").textContent = "Pas de connexion. Réessayez plus tard."; return; }
   try {
     D = await dechiffrer(texte, code);
     if (garder) ecrire("snacks-code", code);

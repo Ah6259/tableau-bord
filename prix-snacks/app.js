@@ -14,7 +14,8 @@ let D = null, F = {periode: "30", de: "", a: "", cat: "", ens: "", marque: "", g
 let VUE = "", REM = "";   // cases du haut cliquables (règle d'Ahmed, 15/11/2026) : VUE = "" | "baisse" | "hausse" ; REM = "" | "cours"
 let aller = null;         // section vers laquelle défiler après le prochain affichage
 // Concurrence (15/11/2026) : courbes choisies (marques ou produits ; la couleur suit l'élément, jamais son rang), calendrier complet ou non
-let COURBES = [], CAL_TOUT = false, COURBE_MSG = "";
+let COURBES = [], CAL_TOUT = false, COURBE_MSG = "", REM_TOUT = false;
+const REM_MAX = 20;       // remises montrées d'abord (15/11 : 90 remises en cartes poussaient les courbes très loin sur téléphone)
 const MAX_COURBES = 6;
 // Grammage (demande d'Ahmed, 15/11/2026) : tranches de poids lues sur le produit ; un lot de plusieurs sachets est à part ; poids non lu = à part
 const GRAMMAGES = [["portion", "Portion : jusqu’à 30 g", p => p.g != null && p.l === 1 && p.g <= 30], ["31-60", "31 à 60 g", p => p.g != null && p.l === 1 && p.g > 30 && p.g <= 60],
@@ -106,6 +107,7 @@ function afficher() {
     <div class="etat">${Object.entries(D.etat).map(([k, v]) => pastille(k, v)).join("")}<span class="p in">${D.jours.length} relevé${D.jours.length > 1 ? "s" : ""} · du ${dateFr(D.jours[0])} au ${dateFr(D.jours[D.jours.length - 1])}</span><span class="sous">mis à jour le ${esc(D.genere_heure || dateFr(D.genere))}, chaque nuit</span></div>
     <div class="boutons"><button class="sec" id="excel">⬇ Excel</button><button class="sec" id="imprimer">🖨 Rapport PDF</button><button class="sec" id="sortir" title="${lire("snacks-code") ? "Ferme la page et oublie le code sur cet appareil" : "Ferme la page"}">✕ Fermer${lire("snacks-code") ? "<small>oublier le code</small>" : ""}</button></div></div>
   <div class="rapport-titre sous">Rapport du ${dateFr(de)} au ${dateFr(a)} · ${F.cat ? CATS[F.cat] : "gaufrettes, biscuits et chips"}${F.ens ? " · " + D.enseignes[F.ens] : ""}${F.marque ? " · " + esc(F.marque) : ""}${F.gram ? " · " + GRAMMAGES.find(([k]) => k === F.gram)[1] : ""}</div>
+  <nav class="sommaire" aria-label="Aller à une partie"><span>Aller à :</span>${[["remises", "Remises"], ["courbes", "Courbes des prix"], ["par-marque", "Remises par marque"], ["calendrier", "Calendrier"], ["qui-suit", "Qui suit qui"], ["produits", "Produits"]].map(([k, t]) => `<button class="sec mini" data-saut="${k}">${t}</button>`).join("")}</nav>
   <div class="filtres carte">
     <label>Durée <select id="f-periode">${[["7", "7 derniers jours"], ["30", "30 derniers jours"], ["90", "90 derniers jours"], ["tout", "Tout l’historique"], ["perso", "Dates au choix"]].map(([v, t]) => `<option value="${v}"${F.periode === v ? " selected" : ""}>${t}</option>`).join("")}</select></label>
     <label>Magasin <select id="f-ens"><option value="">Tous (${nb("ens", () => true)})</option>${Object.entries(D.enseignes).map(([v, t]) => `<option value="${v}"${F.ens === v ? " selected" : ""}>${t} (${nb("ens", p => p.e === v)})</option>`).join("")}</select></label>
@@ -130,11 +132,12 @@ function afficher() {
   else {
     remAff.sort((x, y) => (y.en_cours - x.en_cours) || (y.taux - x.taux));
     h += `<div class="boite"><table class="cartes"><thead><tr><th>Produit</th><th>Marque</th><th>Magasin</th><th class="n">Prix habituel</th><th class="n">Prix remisé</th><th class="n">Économie</th><th class="n">Remise</th><th>Début</th><th>Fin</th><th>Sorte</th></tr></thead><tbody>`;
-    for (const r of remAff) h += `<tr><td data-l="Produit">${esc(r.nom)}${r.poids_g ? ` <span class="sous">${r.poids_g} g</span>` : ""}</td><td data-l="Marque">${esc(r.marque || "—")}</td>
+    for (const r of (REM_TOUT ? remAff : remAff.slice(0, REM_MAX))) h += `<tr><td data-l="Produit">${esc(r.nom)}${r.poids_g ? ` <span class="sous">${r.poids_g} g</span>` : ""}</td><td data-l="Marque">${esc(r.marque || "—")}</td>
       <td data-l="Magasin">${esc(D.enseignes[r.enseigne] || r.enseigne)}</td><td class="n" data-l="Prix habituel">${dt(r.prix_habituel)}</td><td class="n" data-l="Prix remisé"><b>${dt(r.prix_remise)}</b></td><td class="n" data-l="Économie">${r.montant != null ? "−" + dt(r.montant) : "—"}</td>
       <td class="n" data-l="Remise"><span class="p ok">−${pct(r.taux)}</span></td><td data-l="Début">${r.debut_connu === false ? `au plus tard le ${dateFr(r.debut)} <span class="sous">(déjà là au 1er relevé)</span>` : dateFr(r.debut)}</td><td data-l="Fin">${r.en_cours ? '<span class="p in">en cours</span>' : dateFr(r.fin)}</td>
       <td data-l="Sorte">${r.sorte === "annoncee" ? "prix barré par le magasin" : "constatée dans l’historique"}</td></tr>`;
     h += `</tbody></table></div>`;
+    if (!REM_TOUT && remAff.length > REM_MAX) h += `<p><button class="sec" id="rem-tout">Voir les ${remAff.length - REM_MAX} autres remises</button></p>`;
   }
   h += concurrence(rem, b);
   const varDe = x => x.s.length > 1 ? x.s[x.s.length - 1][1][0] / x.s[0][1][0] - 1 : 0;
@@ -165,6 +168,7 @@ function afficher() {
     <li><b>Les robots et leurs horaires (heure de Tunis)</b> : <b>2h37</b> chaque nuit, un seul robot fait tout, dans l’ordre : lecture de Géant (environ 1 minute), lecture de Carrefour magasin par magasin (environ 3 minutes), enregistrement de l’historique, calcul des remises, puis chiffrement et publication de cette page (vers 2h45). Un magasin qui ne répond pas est relu la nuit suivante, ses derniers prix restent. Dernier passage : <b>${esc(D.genere_heure || dateFr(D.genere))}</b>. Rien ne tourne en journée, sauf un lancement à la main.</li>
     <li><b>Historique</b> : chaque prix est gardé jour après jour depuis la mise en service (${dateFr(D.jours[0])}) ; touchez un produit pour voir tous ses prix.</li>
     <li><b>Remises</b> : « prix barré par le magasin » = le site affiche un ancien prix barré (au moins 2 % de moins) ; « constatée dans l’historique » = le prix du jour est au moins ${Math.round((D.seuil || 0.05) * 100)} % sous le prix habituel du produit (médiane des ${D.fenetre || 30} derniers jours, au moins 3 relevés). Chaque remise a sa date de début, sa date de fin (ou « en cours ») et son taux.</li>
+    <li><b>Aller à</b> : en haut de la page, sous Excel et Rapport PDF, une rangée de boutons mène directement à chaque partie (remises, courbes des prix, remises par marque, calendrier, qui suit qui, produits) ; la liste des remises montre d’abord les ${REM_MAX} plus importantes (« Voir les autres remises » pour tout voir).</li>
     <li><b>Courbes des prix</b> : courbes du prix au kilo, par marque (prix médian au kilo de ses produits) ou par produit (bouton 📈 dans la liste), jusqu’à ${MAX_COURBES} à la fois ; les points marquent les jours en remise ; passez le doigt sur la courbe pour lire les prix d’un jour.</li>
     <li><b>Remises par marque</b> : pour chaque marque, nombre de remises, en cours, remise moyenne et la plus forte (en %), économie moyenne en dinars par paquet, magasins et dates ; touchez une marque pour ne voir qu’elle.</li>
     <li><b>Calendrier des remises</b> : une ligne par marque et une case par jour relevé, colorée les jours de remise (plus foncée quand la remise est plus forte) : on voit d’un coup d’œil quelles marques font des remises en même temps.</li>
@@ -289,7 +293,7 @@ function brancherCourbe() {
 }
 
 function brancher(avec, rem, b) {
-  const maj = () => { F.periode = $("#f-periode").value; F.de = $("#f-de")?.value || ""; F.a = $("#f-a")?.value || ""; F.cat = $("#f-cat").value; F.ens = $("#f-ens").value; F.marque = $("#f-marque").value; F.gram = $("#f-gram").value; F.q = $("#f-q").value.trim(); toutVoir = false; afficher(); };
+  const maj = () => { F.periode = $("#f-periode").value; F.de = $("#f-de")?.value || ""; F.a = $("#f-a")?.value || ""; F.cat = $("#f-cat").value; F.ens = $("#f-ens").value; F.marque = $("#f-marque").value; F.gram = $("#f-gram").value; F.q = $("#f-q").value.trim(); toutVoir = false; REM_TOUT = false; afficher(); };
   for (const id of ["#f-periode", "#f-de", "#f-a", "#f-cat", "#f-ens", "#f-marque", "#f-gram"]) $(id)?.addEventListener("change", maj);
   let t; $("#f-q").addEventListener("input", () => { clearTimeout(t); t = setTimeout(maj, 300); });
   $("#tout")?.addEventListener("click", () => { toutVoir = true; afficher(); });
@@ -312,10 +316,12 @@ function brancher(avec, rem, b) {
   $("#site").querySelectorAll("[data-cal]").forEach(el => el.addEventListener("click", () => { const [m, j, n, mx] = el.dataset.cal.split("|");
     $("#cal-detail").innerHTML = `<b>${esc(m)}</b>, ${dateFr(j)} : ${n} remise${n > 1 ? "s" : ""} en cours, la plus forte à −${pct(+mx)}.`; }));
   $("#cal-tout")?.addEventListener("click", () => { CAL_TOUT = true; aller = "calendrier"; afficher(); });
+  $("#rem-tout")?.addEventListener("click", () => { REM_TOUT = true; aller = "remises"; afficher(); });
+  $("#site").querySelectorAll("[data-saut]").forEach(el => el.addEventListener("click", () => { const c = $("#" + el.dataset.saut); if (c) { c.scrollIntoView({behavior: "smooth", block: "start"}); c.classList.add("eclair"); } }));
   brancherCourbe();
   if (aller) { const cible = $("#" + aller); aller = null; if (cible) { cible.scrollIntoView({behavior: "smooth", block: "start"}); cible.classList.add("eclair"); } }
   $("#sortir").addEventListener("click", () => { ecrire("snacks-code", null); location.reload(); });
-  $("#imprimer").addEventListener("click", () => print());
+  $("#imprimer").addEventListener("click", () => { if (!REM_TOUT) { REM_TOUT = true; afficher(); } print(); });   // le rapport imprime TOUTES les remises
   $("#excel").addEventListener("click", () => exporter(avec, rem, b));
 }
 

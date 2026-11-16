@@ -21,7 +21,7 @@ const cleProd = p => String(p.n || "").toLowerCase().replace(/\s+/g, " ").trim()
 // produits (TRIS) ; les cases « prix en baisse / en hausse » du haut choisissent aussi le tri correspondant. Règle du modèle « suivi de prix ».
 const TRIS = [["famille", "Famille puis marque (A → Z)"], ["prix-asc", "Prix : le moins cher d’abord"], ["prix-desc", "Prix : le plus cher d’abord"],
   ["kg-asc", "Prix au kg : le moins cher d’abord"], ["kg-desc", "Prix au kg : le plus cher d’abord"], ["remise", "En remise d’abord (la plus forte)"],
-  ["baisse", "Plus forte baisse sur la durée"], ["hausse", "Plus forte hausse sur la durée"], ["nouveau", "Apparus le plus récemment"],
+  ["baisse", "Plus forte baisse sur la période"], ["hausse", "Plus forte hausse sur la période"], ["nouveau", "Apparus le plus récemment"],
   ["marque", "Marque (A → Z)"], ["poids-asc", "Poids : le plus petit d’abord"]];
 let TRI = "famille";
 let VUE = "", REM = "";   // cases du haut cliquables (règle d'Ahmed, 15/11/2026) : VUE = "" | "baisse" | "hausse" ; REM = "" | "cours"
@@ -123,6 +123,8 @@ function trier(liste, varDe) {
 }
 function afficher() {
   const b = bornes(), [de, a] = b;
+  // 16/11/2026 (Ahmed : « que veut dire chiffres de la durée ? ») : la période choisie est écrite en clair partout, jamais « la durée »
+  const SUR = F.periode === "tout" ? "depuis le début du suivi" : F.periode === "perso" ? `du ${dateFr(de).slice(0, 5)} au ${dateFr(a).slice(0, 5)}` : `sur ces ${F.periode} jours`;
   const prods = D.produits.filter(produitPasse);
   const avec = prods.map(p => ({p, s: serie(p, b)})).filter(x => x.s.length);
   const rem = D.remises.filter(r => r.fin >= de && r.debut <= a && prods.some(p => p.id === r.id));
@@ -149,23 +151,21 @@ function afficher() {
     <div class="etat">${Object.entries(D.etat).map(([k, v]) => pastille(k, v)).join("")}<span class="p in">${D.jours.length} relevé${D.jours.length > 1 ? "s" : ""} · du ${dateFr(D.jours[0])} au ${dateFr(D.jours[D.jours.length - 1])}</span><span class="sous">mis à jour le ${esc(D.genere_heure || dateFr(D.genere))}, chaque nuit</span></div>
     <div class="boutons"><button class="sec" id="excel">⬇ Excel</button><button class="sec" id="imprimer">🖨 Rapport PDF</button><button class="sec" id="sortir" title="${lire("snacks-code") ? "Ferme la page et oublie le code sur cet appareil" : "Ferme la page"}">✕ Fermer${lire("snacks-code") ? "<small>oublier le code</small>" : ""}</button></div></div>
   <div class="rapport-titre sous">Rapport du ${dateFr(de)} au ${dateFr(a)} · ${F.cat ? CATS[F.cat] : "gaufrettes, biscuits et chips"}${F.ens ? " · " + D.enseignes[F.ens] : ""}${F.marque ? " · " + esc(F.marque) : ""}${F.prod ? " · " + esc(nomsProd.get(F.prod)?.nom || F.prod) : ""}${F.gram ? " · " + GRAMMAGES.find(([k]) => k === F.gram)[1] : ""}</div>
-  <section class="bloc bloc-chiffres carte" aria-label="Les chiffres"><div class="bloc-titre"><span aria-hidden="true">📊</span> Les chiffres de la durée</div>
+  <section class="bloc bloc-chiffres carte" aria-label="Les chiffres"><div class="bloc-titre bloc-periode"><span aria-hidden="true">📊</span> <label for="f-periode">Les chiffres</label> <select id="f-periode" aria-label="Période des chiffres et de toute la page">${[["7", "des 7 derniers jours"], ["30", "des 30 derniers jours"], ["90", "des 90 derniers jours"], ["tout", "de tout l’historique"], ["perso", "entre deux dates"]].map(([v, t]) => `<option value="${v}"${F.periode === v ? " selected" : ""}>${t}</option>`).join("")}</select></div>
+  ${F.periode === "perso" ? `<div class="periode-dates"><label>Du <input type="date" id="f-de" value="${esc(F.de || de)}" min="${D.jours[0]}" max="${D.jours[D.jours.length - 1]}"></label><label>Au <input type="date" id="f-a" value="${esc(F.a || a)}" min="${D.jours[0]}" max="${D.jours[D.jours.length - 1]}"></label></div>` : ""}
   <div class="chiffres">
     <button class="carte clic" data-aller="produits" data-vue=""><b>${avec.length}</b><span>produits suivis</span></button>
     <button class="carte clic" data-aller="remises" data-rem="cours"><b>${enCours.length}</b><span>remises en cours</span></button>
-    <button class="carte clic" data-aller="remises" data-rem=""><b>${rem.length}</b><span>remises sur la durée</span></button>
-    <button class="carte clic" data-aller="produits" data-vue="baisse"><b>${baisses}</b><span>prix en baisse sur la durée</span></button>
-    <button class="carte clic" data-aller="produits" data-vue="hausse"><b>${hausses}</b><span>prix en hausse sur la durée</span></button>
-    <button class="carte clic" data-saut="nouveautes"><b>${nv.produits.length}</b><span>nouveaux produits sur la durée${nv.marques.length ? ` (dont ${nv.marques.length} nouvelle${nv.marques.length > 1 ? "s" : ""} marque${nv.marques.length > 1 ? "s" : ""})` : ""}</span></button>
+    <button class="carte clic" data-aller="remises" data-rem=""><b>${rem.length}</b><span>remises ${SUR}</span></button>
+    <button class="carte clic" data-aller="produits" data-vue="baisse"><b>${baisses}</b><span>prix en baisse ${SUR}</span></button>
+    <button class="carte clic" data-aller="produits" data-vue="hausse"><b>${hausses}</b><span>prix en hausse ${SUR}</span></button>
+    <button class="carte clic" data-saut="nouveautes"><b>${nv.produits.length}</b><span>nouveaux produits ${SUR}${nv.marques.length ? ` (dont ${nv.marques.length} nouvelle${nv.marques.length > 1 ? "s" : ""} marque${nv.marques.length > 1 ? "s" : ""})` : ""}</span></button>
   </div></section>
   <button class="vers-sommaire" id="vers-sommaire" hidden aria-label="Revenir au sommaire">↑ Sommaire</button>
   <nav class="sommaire bloc carte" aria-label="Aller à une partie"><div class="sommaire-titre bloc-titre"><span aria-hidden="true">📍</span> Aller directement à</div><div class="sommaire-grille">${[["remises", "🏷️", "Remises", rem.length], ["nouveautes", "🆕", "Nouveautés", nv.produits.length], ["courbes", "📈", "Courbes des prix", null], ["par-marque", "🏢", "Remises par marque", null], ["calendrier", "📅", "Calendrier des remises", null], ["qui-suit", "🔁", "Qui suit qui ?", null], ["produits", "🛒", "Produits", avec.length]].map(([k, ico, t, n]) => `<button class="saut" data-saut="${k}"><span class="ico" aria-hidden="true">${ico}</span><span>${t}</span>${n != null ? `<b>${n}</b>` : ""}</button>`).join("")}</div></nav>
   <section class="bloc bloc-filtres carte" aria-label="Filtrer les produits"><div class="bloc-titre"><span aria-hidden="true">🔎</span> Filtrer les produits</div>
   <div class="filtres">
-    <label>Durée <select id="f-periode">${[["7", "7 derniers jours"], ["30", "30 derniers jours"], ["90", "90 derniers jours"], ["tout", "Tout l’historique"], ["perso", "Dates au choix"]].map(([v, t]) => `<option value="${v}"${F.periode === v ? " selected" : ""}>${t}</option>`).join("")}</select></label>
     <label>Magasin <select id="f-ens"><option value="">Tous (${nb("ens", () => true)})</option>${Object.entries(D.enseignes).map(([v, t]) => `<option value="${v}"${F.ens === v ? " selected" : ""}>${t} (${nb("ens", p => p.e === v)})</option>`).join("")}</select></label>
-    <label${F.periode === "perso" ? "" : " hidden"}>Du <input type="date" id="f-de" value="${esc(F.de || de)}" min="${D.jours[0]}" max="${D.jours[D.jours.length - 1]}"></label>
-    <label${F.periode === "perso" ? "" : " hidden"}>Au <input type="date" id="f-a" value="${esc(F.a || a)}" min="${D.jours[0]}" max="${D.jours[D.jours.length - 1]}"></label>
     <label>Famille <select id="f-cat"><option value="">Toutes (${nb("cat", () => true)})</option>${Object.entries(CATS).map(([v, t]) => `<option value="${v}"${F.cat === v ? " selected" : ""}>${t} (${nb("cat", p => p.c === v)})</option>`).join("")}</select></label>
     <label>Marque <select id="f-marque"><option value="">Toutes (${marques.length})</option>${marques.map(m => `<option value="${esc(m)}"${F.marque === m ? " selected" : ""}>${esc(m)} (${nb("marque", p => p.m === m)})</option>`).join("")}</select></label>
     <label>Grammage <select id="f-gram"><option value="">Tous</option>${GRAMMAGES.map(([v, t]) => `<option value="${v}"${F.gram === v ? " selected" : ""}>${t} (${nbGram[v]})</option>`).join("")}</select></label>
@@ -191,7 +191,7 @@ function afficher() {
   h += FIN + blocNouveautes(nv) + concurrence(rem, b);
   const varDe = x => x.s.length > 1 ? x.s[x.s.length - 1][1][0] / x.s[0][1][0] - 1 : 0;
   const liste = trier(VUE === "baisse" ? avec.filter(x => varDe(x) < -0.0005) : VUE === "hausse" ? avec.filter(x => varDe(x) > 0.0005) : avec, varDe);
-  h += section("produits", VUE === "baisse" ? `Prix en baisse sur la durée (${liste.length}, la plus forte baisse d’abord)` : VUE === "hausse" ? `Prix en hausse sur la durée (${liste.length}, la plus forte hausse d’abord)` : "Produits et historique des prix", VUE ? null : liste.length) + (VUE ? `<p><button class="sec" data-vue="">Voir tous les produits</button></p>` : "");
+  h += section("produits", VUE === "baisse" ? `Prix en baisse ${SUR} (${liste.length}, la plus forte baisse d’abord)` : VUE === "hausse" ? `Prix en hausse ${SUR} (${liste.length}, la plus forte hausse d’abord)` : "Produits et historique des prix", VUE ? null : liste.length) + (VUE ? `<p><button class="sec" data-vue="">Voir tous les produits</button></p>` : "");
   if (liste.length) h += `<label class="tri-produits">Trier <select id="f-tri">${TRIS.map(([v, t]) => `<option value="${v}"${TRI === v ? " selected" : ""}>${t}</option>`).join("")}</select></label>`;
   if (!liste.length) h += `<div class="vide">Aucun produit ${VUE ? "dans ce cas" : "relevé"} sur cette durée avec ces filtres.</div>`;
   else {
@@ -229,7 +229,7 @@ function afficher() {
     <li><b>Calendrier des remises</b> : une ligne par marque et une case par jour relevé, colorée les jours de remise (plus foncée quand la remise est plus forte) : on voit d’un coup d’œil quelles marques font des remises en même temps.</li>
     <li><b>Qui suit qui ?</b> : quand une marque lance une remise, une autre en lance-t-elle une dans les 7 jours ? Nombre de fois, le même jour, délai moyen. Une remise déjà là au premier relevé ne compte pas (début inconnu). Ce n’est pas une preuve de copie : le tableau devient parlant après quelques semaines.</li>
     <li><b>Les cases de chiffres sont des boutons</b> : « produits suivis » ouvre la liste, « remises en cours » et « remises sur la durée » ouvrent les remises, « prix en baisse » et « prix en hausse » montrent ces produits triés par variation.</li>
-    <li><b>Durée au choix</b> : 7, 30, 90 jours, tout l’historique ou deux dates ; les chiffres, les remises et les variations se recalculent sur cette durée.</li>
+    <li><b>Durée au choix</b> : en haut, dans le bloc « Les chiffres », le choix « des 7, 30 ou 90 derniers jours », « de tout l’historique » ou « entre deux dates » ; les chiffres, les remises, les variations et toute la page se recalculent sur cette période, écrite en clair dans les cases (« remises sur ces 30 jours »).</li>
     <li><b>Filtres</b> : famille (gaufrettes, biscuits, chips), magasin, marque, <b>produit</b> (une fois la marque choisie, la liste de ses produits ; le même nom vendu dans plusieurs magasins est un seul choix), <b>grammage</b> (portion jusqu’à 30 g, 31 à 60 g, 61 à 120 g, 121 à 250 g, plus de 250 g, lots de plusieurs sachets, poids non lu ; le poids est celui écrit par le magasin, un lot « 2 × 70 g » compte 140 g), recherche par mot.</li>
     <li><b>Exporter Excel</b> : un classeur avec l’historique (une ligne par produit, magasin et jour), les remises (avec l’économie en dinars), les remises par marque, « qui suit qui », les nouveautés et la liste des produits, sur la durée et les filtres choisis.</li>
     <li><b>Rapport (PDF)</b> : imprime la page telle qu’elle est filtrée (le téléphone ou l’ordinateur propose « Enregistrer en PDF »).</li>

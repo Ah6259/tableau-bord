@@ -143,3 +143,10 @@ div.sous.mg-stock{background:var(--orangef);color:var(--texte);border-radius:6px
 /* 16/11/2026 : choix du tri au-dessus de la liste des produits */
 .tri-produits{display:flex;align-items:center;gap:8px;margin:4px 0 10px;font-size:13px;color:var(--doux)}
 .tri-produits select{font:inherit;font-size:14px;padding:7px 10px;border:1px solid var(--ligne);border-radius:8px;background:var(--fond);color:var(--texte);max-width:100%;min-width:0}
+/* 16/11/2026 (Ahmed : « Fais A ») : le choix de la période est DANS le titre du bloc des chiffres (les chiffres dépendent de lui) */
+.bloc-periode{flex-wrap:wrap}
+.bloc-periode label{cursor:pointer}
+.bloc-periode select{font:inherit;font-weight:700;font-size:16px;padding:4px 30px 4px 10px;border:1px solid var(--bleu);border-radius:8px;background:var(--bleuf);color:var(--texte);max-width:100%;min-width:0}
+.periode-dates{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:-2px 0 10px}
+.periode-dates label{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--doux);min-width:0}
+.periode-dates input{font:inherit;font-size:14px;padding:8px 10px;border:1px solid var(--ligne);border-radius:8px;background:var(--fond);color:var(--texte);width:100%;min-width:0}

@@ -136,6 +136,8 @@ function afficher(d) {
     <div class="carte"><b>${nf(passActifs)}</b><span>Pass actifs</span></div>
     <div class="carte"><b>${nf(ajoutes)}</b><span>éléments ajoutés aujourd'hui par les robots</span></div>
     <div class="carte"><b>${nf(d.personnes.length)}</b><span>clients et abonnés</span></div>
+    ${d.depenses && Object.keys(d.depenses.par_mois).length ? `<div class="carte"><b>${Object.entries(d.depenses.par_mois).map(([dv, v]) => montant(v, dv)).join(" + ")}</b><span>d’abonnements par mois</span></div>` : ""}
+    ${d.minutes ? `<div class="carte"><b class="${d.minutes.fin_prevue ? "moins" : "plus"}">${nf(d.minutes.reste)}</b><span>minutes GitHub restantes sur ${nf(d.minutes.quota)}</span></div>` : ""}
   </div>`;
   const tableRobots = (liste, titre, sous, cls, pre) => !liste.length ? "" : `<h2>${titre}</h2><div class="sous" style="margin:-4px 0 8px">${sous}</div><div class="carte boite"><table class="cartes"><thead><tr><th>Site</th><th>Robot</th><th>Dépôt</th><th>Dernier passage</th></tr></thead><tbody>${
     liste.map((r, i) => `<tr class="site" data-d="${pre}${i}"><td>${esc(r.site)}</td><td data-l="Robot"><span><span class="p ${cls}">${esc(r.nom)} ▸</span></span></td><td data-l="Dépôt"><span>${esc(r.depot)}</span></td><td data-l="Dernier passage"><span>${dateFr(r.date)}</span></td></tr>
@@ -143,6 +145,8 @@ function afficher(d) {
 
   h += tableRobots(rouges, "Robots à réparer", "Touchez un robot pour voir la cause.", "ko", "cause");
   h += tableRobots(attente, "Réparés, attendent leur prochain passage", "En échec avant la réparation : ils redeviennent verts seuls à leur prochain passage.", "at", "att");
+  h += sectionMinutes(d.minutes);
+  h += sectionDepenses(d.depenses);
   h += tableRobots(sources, "Panne chez la source (rien à réparer chez nous)", "Le site d'où le robot lit ses données (ministère, Douane…) ne répond plus : les anciennes données restent en ligne, le robot reprend seul quand la source revient.", "at", "src");
   h += tableRobots(arretes, "Robots qui ne tournent plus", "Plus aucun passage depuis 7 jours : jamais comptés rouges.", "in", "arr");
   h += sectionAutonomie(d);
@@ -199,6 +203,44 @@ function afficher(d) {
   $("#sortir").addEventListener("click", () => { ecrire("tdb-code", null); location.reload(); });
 }
 
+// 15/11/2026 (Ahmed : « ajoute le calcul des minutes restantes des 2 000 ») : minutes GitHub des dépôts PRIVÉS (les publics
+// sont gratuits). Estimées par le robot comme GitHub les compte : durée de chaque passage arrondie à la minute supérieure.
+function sectionMinutes(m) {
+  if (!m) return "";
+  const pc = Math.min(100, m.pourcent), coul = m.pourcent >= 90 || m.fin_prevue ? "var(--rouge)" : m.pourcent >= 70 ? "var(--orange)" : "var(--vert)";
+  const alerte = m.fin_prevue
+    ? `<p class="moins">Au rythme actuel (${nf(m.rythme_jour)} min par jour), il n'en restera plus vers le <b>${dateFr(m.fin_prevue)}</b> : GitHub arrêtera alors les robots privés (Pass, alertes, IA, snacks) jusqu'au ${dateFr(m.remise_a_zero)}. Rien n'est facturé (limite de dépense à 0 $).</p>`
+    : `<p class="plus">Au rythme actuel (${nf(m.rythme_jour)} min par jour), le mois se termine avec environ ${nf(m.projection_fin_mois)} minutes : ça tient.</p>`;
+  return `<h2>Minutes GitHub (dépôts privés)</h2><div class="sous" style="margin:-4px 0 8px">2 000 minutes par mois pour les robots des dépôts PRIVÉS (les dépôts publics sont gratuits). Remise à zéro le ${dateFr(m.remise_a_zero)}. Estimation du robot : durée de chaque passage arrondie à la minute supérieure, comme GitHub.</div>
+  <div class="carte" style="padding:12px 14px">
+    <div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap"><span><b style="font-size:20px">${nf(m.utilise)}</b> utilisées depuis le ${dateFr(m.depuis)} (${m.pourcent} %)</span><span><b style="font-size:20px">${nf(m.reste)}</b> restantes</span></div>
+    <div role="progressbar" aria-valuenow="${m.pourcent}" aria-valuemin="0" aria-valuemax="100" style="height:12px;border-radius:99px;background:var(--fond);border:1px solid var(--ligne);margin:8px 0;overflow:hidden"><div style="height:100%;width:${pc}%;background:${coul}"></div></div>
+    ${alerte}
+    ${(m.illisibles || []).length ? `<p class="sous">Dépôts non lus ce matin : ${m.illisibles.map(esc).join(", ")}.</p>` : ""}
+  </div>
+  <h3>Robots qui consomment le plus ce mois-ci</h3>
+  <div class="carte boite"><table class="cartes"><thead><tr><th>Robot</th><th>Dépôt</th><th class="n">Minutes</th><th class="n">Passages</th><th class="n">Lancés à la main</th></tr></thead><tbody>${
+    m.robots.map(r => `<tr><td>${esc(r.robot)}</td><td data-l="Dépôt"><span>${esc(r.depot)}</span></td><td data-l="Minutes" class="n"><span>${nf(r.minutes)}</span></td><td data-l="Passages" class="n"><span>${nf(r.passages)}</span></td><td data-l="À la main" class="n"><span>${r.a_la_main ? nf(r.a_la_main) : "—"}</span></td></tr>`).join("")}</tbody></table></div>`;
+}
+// 16/11/2026 (Ahmed : « ajoute ce que j'ai dépensé et la liste des abonnements que je paye ») : lu dans tableau de bord/depenses.json
+// (privé, modifiable sur github.com). Jamais de conversion de devise : un total par devise ; un montant inconnu est « à confirmer ».
+function montant(v, dv) { return v == null ? "à confirmer" : `${Number(v).toLocaleString("fr-FR", {maximumFractionDigits: 2})} ${dv === "USD" ? "$" : dv === "EUR" ? "€" : esc(dv || "DT")}`; }
+function sectionDepenses(D) {
+  if (!D) return "";
+  const tot = o => Object.keys(o).length ? Object.entries(o).map(([dv, v]) => montant(v, dv)).join(" + ") : "—";
+  const freq = f => f === "an" ? "par an" : f === "mois" ? "par mois" : esc(f || "");
+  let h = `<h2>Dépenses et abonnements</h2><div class="sous" style="margin:-4px 0 8px">Lu dans le fichier privé « tableau de bord/depenses.json » (modifiable sur github.com, ou demandez à Claude). Chaque devise a son total : rien n'est converti.</div>
+  <div class="carte" style="padding:12px 14px"><div style="display:flex;gap:18px;flex-wrap:wrap"><span>Abonnements : <b>${tot(D.par_mois)}</b> par mois</span><span><b>${tot(D.par_an)}</b> par an</span><span>Dépensé ce mois-ci : <b>${tot(D.depense_mois)}</b></span><span>Cette année : <b>${tot(D.depense_annee)}</b></span></div>
+    ${D.a_confirmer.length ? `<p class="sous">Montant à confirmer (pas compté) : ${D.a_confirmer.map(esc).join(", ")}.</p>` : ""}
+    ${D.bientot.length ? `<p><b>Prochains paiements (30 jours)</b> : ${D.bientot.map(b => `${esc(b.nom)} le ${dateFr(b.date)} (${b.jours ? "dans " + b.jours + " jour" + (b.jours > 1 ? "s" : "") : "aujourd’hui"}, ${montant(b.montant, b.devise)})`).join(" ; ")}</p>` : ""}</div>
+  <h3>Abonnements</h3><div class="carte boite"><table class="cartes"><thead><tr><th>Abonnement</th><th>Sert à</th><th class="n">Montant</th><th>Prochain paiement</th><th>État</th><th>Note</th></tr></thead><tbody>${
+    D.abonnements.map(a => `<tr><td>${esc(a.nom)}</td><td data-l="Sert à"><span>${esc(a.a_quoi_sert || "—")}</span></td><td data-l="Montant" class="n"><span>${montant(a.montant, a.devise)} ${a.montant != null ? freq(a.frequence) : ""}</span></td><td data-l="Prochain paiement"><span>${a.prochaine ? dateFr(a.prochaine) : "—"}</span></td><td data-l="État"><span><span class="p ${a.actif === false ? "in" : a.montant == null ? "at" : "ok"}">${a.actif === false ? "arrêté" : a.montant == null ? "à confirmer" : "actif"}</span></span></td><td data-l="Note"><span class="sous">${esc(a.note || "—")}</span></td></tr>`).join("")}</tbody></table></div>
+  <h3>Ce que j'ai dépensé (paiements faits)</h3>`;
+  h += D.paiements.length ? `<div class="sous" style="margin:-4px 0 8px">Total depuis le début : ${tot(D.depense_total)} (${D.nb_paiements} paiement${D.nb_paiements > 1 ? "s" : ""}).</div><div class="carte boite"><table class="cartes"><thead><tr><th>Date</th><th>Pour</th><th class="n">Montant</th><th>Note</th></tr></thead><tbody>${
+    D.paiements.map(p => `<tr><td>${dateFr(p.date)}</td><td data-l="Pour"><span>${esc(p.nom || "—")}</span></td><td data-l="Montant" class="n"><span>${montant(p.montant, p.devise)}</span></td><td data-l="Note"><span>${esc(p.note || "")}</span></td></tr>`).join("")}</tbody></table></div>`
+    : `<div class="carte vide" style="padding:12px 14px">Aucun paiement noté pour le moment : dites à Claude « j'ai payé X pour Y le JJ/MM », il l'ajoute.</div>`;
+  return h;
+}
 function cause(r) {
   const l = [];
   if (r.etapes && r.etapes.length) l.push(`Étape en échec : <b>${r.etapes.map(esc).join(", ")}</b>`);
@@ -249,7 +291,7 @@ function detail(s) {
 // 23/10/2026 (Ahmed : « ces boutons doivent fonctionner ») : chaque case du haut mène à sa section (titre h2 trouvé par ses
 // premiers mots) ; branché après chaque affichage, sans toucher au code qui dessine les cases.
 const CASES = [[/sites en ligne/i, /^Sites/], [/Google/i, /^Sites/], [/autonomes/i, /^Autonomie/], [/à réparer|en échec/i, /^Robots (à réparer|en échec)/], [/attendent/i, /^Réparés/],
-  [/Pass actifs/i, /^Clients/], [/ajoutés aujourd/i, /^Sites/], [/clients et abonnés/i, /^Clients/]];
+  [/Pass actifs/i, /^Clients/], [/minutes GitHub/i, /^Minutes GitHub/], [/abonnements par mois/i, /^Dépenses et abonnements/], [/ajoutés aujourd/i, /^Sites/], [/clients et abonnés/i, /^Clients/]];
 function brancherCases() {
   document.querySelectorAll(".chiffres .carte").forEach(c => {
     if (c.dataset.branche) return;

@@ -17,6 +17,13 @@ let D = null, F = {periode: "30", de: "", a: "", cat: "", ens: "", marque: "", p
 const OUVERTES = new Set(); let NV_TOUT = false, IMPRESSION = false, NV_CACHE = null;
 // filtre « Produit » (Ahmed, 15/11) : le nom du produit, choisi parmi ceux de la marque choisie (le même nom dans plusieurs magasins = un choix)
 const cleProd = p => String(p.n || "").toLowerCase().replace(/\s+/g, " ").trim();
+// 16/11/2026 (Ahmed : « trier les prix par moins cher, plus cher, et d'autres tris utiles ») : un seul choix de tri pour la liste des
+// produits (TRIS) ; les cases « prix en baisse / en hausse » du haut choisissent aussi le tri correspondant. Règle du modèle « suivi de prix ».
+const TRIS = [["famille", "Famille puis marque (A → Z)"], ["prix-asc", "Prix : le moins cher d’abord"], ["prix-desc", "Prix : le plus cher d’abord"],
+  ["kg-asc", "Prix au kg : le moins cher d’abord"], ["kg-desc", "Prix au kg : le plus cher d’abord"], ["remise", "En remise d’abord (la plus forte)"],
+  ["baisse", "Plus forte baisse sur la durée"], ["hausse", "Plus forte hausse sur la durée"], ["nouveau", "Apparus le plus récemment"],
+  ["marque", "Marque (A → Z)"], ["poids-asc", "Poids : le plus petit d’abord"]];
+let TRI = "famille";
 let VUE = "", REM = "";   // cases du haut cliquables (règle d'Ahmed, 15/11/2026) : VUE = "" | "baisse" | "hausse" ; REM = "" | "cours"
 let aller = null;
 addEventListener("popstate", e => { if (!(e.state && e.state.saut)) { const som = document.querySelector(".sommaire"); if (som) som.scrollIntoView({behavior: "smooth", block: "center"}); } });         // section vers laquelle défiler après le prochain affichage
@@ -99,6 +106,21 @@ function variation(s) {
 }
 const kilo = p => p.g ? (p.p[D.jours[D.jours.length - 1]]?.[0] ?? null) == null ? null : (p.p[D.jours[D.jours.length - 1]][0] / p.g) * 1000 : null;
 
+// Tri de la liste des produits (TRI) : un produit sans la donnée demandée (sans poids pour le prix au kg, sans remise…) va à la fin ;
+// à égalité, l'ordre « famille, marque, nom » ; le dernier prix relevé sur la durée fait foi (même chiffre que la colonne « Dernier prix »).
+function trier(liste, varDe) {
+  const dern = x => x.s[x.s.length - 1][1][0];
+  const kg = x => x.p.g ? dern(x) / x.p.g * 1000 : null;
+  const rem = x => { const d = x.s[x.s.length - 1][1]; return d[1] > d[0] + 0.0005 ? (d[1] - d[0]) / d[1] : 0; };
+  const prem = x => Object.keys(x.p.p).filter(j => x.p.p[j]).sort()[0] || "";
+  const base = (x, y) => x.p.c.localeCompare(y.p.c) || (x.p.m || "zzz").localeCompare(y.p.m || "zzz", "fr") || x.p.n.localeCompare(y.p.n, "fr");
+  const num = (f, sens) => (x, y) => { const a = f(x), b = f(y); if (a == null && b == null) return base(x, y); if (a == null) return 1; if (b == null) return -1; return (a - b) * sens || base(x, y); };
+  const C = {famille: base, "prix-asc": num(dern, 1), "prix-desc": num(dern, -1), "kg-asc": num(kg, 1), "kg-desc": num(kg, -1),
+    remise: num(x => rem(x) || null, -1), baisse: num(x => varDe(x) < -0.0005 ? varDe(x) : null, 1), hausse: num(x => varDe(x) > 0.0005 ? varDe(x) : null, -1),
+    nouveau: (x, y) => prem(y).localeCompare(prem(x)) || base(x, y), marque: (x, y) => (x.p.m || "zzz").localeCompare(y.p.m || "zzz", "fr") || x.p.n.localeCompare(y.p.n, "fr"),
+    "poids-asc": num(x => x.p.g || null, 1)};
+  return [...liste].sort(C[TRI] || base);
+}
 function afficher() {
   const b = bornes(), [de, a] = b;
   const prods = D.produits.filter(produitPasse);
@@ -127,6 +149,7 @@ function afficher() {
     <div class="etat">${Object.entries(D.etat).map(([k, v]) => pastille(k, v)).join("")}<span class="p in">${D.jours.length} relevé${D.jours.length > 1 ? "s" : ""} · du ${dateFr(D.jours[0])} au ${dateFr(D.jours[D.jours.length - 1])}</span><span class="sous">mis à jour le ${esc(D.genere_heure || dateFr(D.genere))}, chaque nuit</span></div>
     <div class="boutons"><button class="sec" id="excel">⬇ Excel</button><button class="sec" id="imprimer">🖨 Rapport PDF</button><button class="sec" id="sortir" title="${lire("snacks-code") ? "Ferme la page et oublie le code sur cet appareil" : "Ferme la page"}">✕ Fermer${lire("snacks-code") ? "<small>oublier le code</small>" : ""}</button></div></div>
   <div class="rapport-titre sous">Rapport du ${dateFr(de)} au ${dateFr(a)} · ${F.cat ? CATS[F.cat] : "gaufrettes, biscuits et chips"}${F.ens ? " · " + D.enseignes[F.ens] : ""}${F.marque ? " · " + esc(F.marque) : ""}${F.prod ? " · " + esc(nomsProd.get(F.prod)?.nom || F.prod) : ""}${F.gram ? " · " + GRAMMAGES.find(([k]) => k === F.gram)[1] : ""}</div>
+  <section class="bloc bloc-chiffres carte" aria-label="Les chiffres"><div class="bloc-titre"><span aria-hidden="true">📊</span> Les chiffres de la durée</div>
   <div class="chiffres">
     <button class="carte clic" data-aller="produits" data-vue=""><b>${avec.length}</b><span>produits suivis</span></button>
     <button class="carte clic" data-aller="remises" data-rem="cours"><b>${enCours.length}</b><span>remises en cours</span></button>
@@ -134,10 +157,11 @@ function afficher() {
     <button class="carte clic" data-aller="produits" data-vue="baisse"><b>${baisses}</b><span>prix en baisse sur la durée</span></button>
     <button class="carte clic" data-aller="produits" data-vue="hausse"><b>${hausses}</b><span>prix en hausse sur la durée</span></button>
     <button class="carte clic" data-saut="nouveautes"><b>${nv.produits.length}</b><span>nouveaux produits sur la durée${nv.marques.length ? ` (dont ${nv.marques.length} nouvelle${nv.marques.length > 1 ? "s" : ""} marque${nv.marques.length > 1 ? "s" : ""})` : ""}</span></button>
-  </div>
+  </div></section>
   <button class="vers-sommaire" id="vers-sommaire" hidden aria-label="Revenir au sommaire">↑ Sommaire</button>
-  <nav class="sommaire carte" aria-label="Aller à une partie"><div class="sommaire-titre">📍 Aller directement à</div><div class="sommaire-grille">${[["remises", "🏷️", "Remises", rem.length], ["nouveautes", "🆕", "Nouveautés", nv.produits.length], ["courbes", "📈", "Courbes des prix", null], ["par-marque", "🏢", "Remises par marque", null], ["calendrier", "📅", "Calendrier des remises", null], ["qui-suit", "🔁", "Qui suit qui ?", null], ["produits", "🛒", "Produits", avec.length]].map(([k, ico, t, n]) => `<button class="saut" data-saut="${k}"><span class="ico" aria-hidden="true">${ico}</span><span>${t}</span>${n != null ? `<b>${n}</b>` : ""}</button>`).join("")}</div></nav>
-  <div class="filtres carte">
+  <nav class="sommaire bloc carte" aria-label="Aller à une partie"><div class="sommaire-titre bloc-titre"><span aria-hidden="true">📍</span> Aller directement à</div><div class="sommaire-grille">${[["remises", "🏷️", "Remises", rem.length], ["nouveautes", "🆕", "Nouveautés", nv.produits.length], ["courbes", "📈", "Courbes des prix", null], ["par-marque", "🏢", "Remises par marque", null], ["calendrier", "📅", "Calendrier des remises", null], ["qui-suit", "🔁", "Qui suit qui ?", null], ["produits", "🛒", "Produits", avec.length]].map(([k, ico, t, n]) => `<button class="saut" data-saut="${k}"><span class="ico" aria-hidden="true">${ico}</span><span>${t}</span>${n != null ? `<b>${n}</b>` : ""}</button>`).join("")}</div></nav>
+  <section class="bloc bloc-filtres carte" aria-label="Filtrer les produits"><div class="bloc-titre"><span aria-hidden="true">🔎</span> Filtrer les produits</div>
+  <div class="filtres">
     <label>Durée <select id="f-periode">${[["7", "7 derniers jours"], ["30", "30 derniers jours"], ["90", "90 derniers jours"], ["tout", "Tout l’historique"], ["perso", "Dates au choix"]].map(([v, t]) => `<option value="${v}"${F.periode === v ? " selected" : ""}>${t}</option>`).join("")}</select></label>
     <label>Magasin <select id="f-ens"><option value="">Tous (${nb("ens", () => true)})</option>${Object.entries(D.enseignes).map(([v, t]) => `<option value="${v}"${F.ens === v ? " selected" : ""}>${t} (${nb("ens", p => p.e === v)})</option>`).join("")}</select></label>
     <label${F.periode === "perso" ? "" : " hidden"}>Du <input type="date" id="f-de" value="${esc(F.de || de)}" min="${D.jours[0]}" max="${D.jours[D.jours.length - 1]}"></label>
@@ -148,7 +172,7 @@ function afficher() {
     <label class="large">Produit <select id="f-prod"${F.marque ? "" : " disabled"}>${F.marque ? `<option value="">Tous les produits ${esc(F.marque)} (${prodsMarque.length})</option>${prodsMarque.map(([k, x]) => `<option value="${esc(k)}"${F.prod === k ? " selected" : ""}>${esc(x.nom)}${x.ens.size > 1 ? ` (${x.ens.size} magasins)` : ""}</option>`).join("")}` : `<option value="">Choisissez d’abord une marque ci-dessus</option>`}</select></label>
     <label class="large">Chercher <input type="search" id="f-q" value="${esc(F.q)}" placeholder="un mot du nom, une marque, un parfum…"></label>
     <div class="actions"><span>${actifs ? `${actifs} filtre${actifs > 1 ? "s" : ""} actif${actifs > 1 ? "s" : ""} · ${avec.length} produit${avec.length > 1 ? "s" : ""}` : "Aucun filtre : tous les produits"}</span>${actifs ? `<button class="sec" id="effacer">✕ Effacer les filtres</button>` : ""}</div>
-  </div>
+  </div></section>
   ${section("remises", REM === "cours" ? `Remises en cours (${enCours.length})` : `Remises du ${dateFr(de)} au ${dateFr(a)} (${rem.length})`)}${REM ? `<p><button class="sec" data-rem="">Voir toutes les remises de la durée</button></p>` : ""}`;
   const remType = (REM === "cours" ? enCours : rem), nbType = k => remType.filter(r => !k || (k === "lot") === (r.sorte === "lot")).length;
   if (remType.length) h += `<div class="types-rem"><span>Type de remise :</span>${[["", "Toutes"], ["prix", "Sur le prix"], ["lot", "Sur le lot (2e gratuit, −50 % sur le 2e…)"]].map(([k, t]) => `<button class="sec mini" data-type-rem="${k}" aria-pressed="${TYPE_REM === k}">${t} (${nbType(k)})</button>`).join("")}</div>`;
@@ -166,10 +190,9 @@ function afficher() {
   }
   h += FIN + blocNouveautes(nv) + concurrence(rem, b);
   const varDe = x => x.s.length > 1 ? x.s[x.s.length - 1][1][0] / x.s[0][1][0] - 1 : 0;
-  const liste = VUE === "baisse" ? avec.filter(x => varDe(x) < -0.0005).sort((x, y) => varDe(x) - varDe(y))
-    : VUE === "hausse" ? avec.filter(x => varDe(x) > 0.0005).sort((x, y) => varDe(y) - varDe(x))
-    : avec.sort((x, y) => x.p.c.localeCompare(y.p.c) || (x.p.m || "zzz").localeCompare(y.p.m || "zzz", "fr") || x.p.n.localeCompare(y.p.n, "fr"));
+  const liste = trier(VUE === "baisse" ? avec.filter(x => varDe(x) < -0.0005) : VUE === "hausse" ? avec.filter(x => varDe(x) > 0.0005) : avec, varDe);
   h += section("produits", VUE === "baisse" ? `Prix en baisse sur la durée (${liste.length}, la plus forte baisse d’abord)` : VUE === "hausse" ? `Prix en hausse sur la durée (${liste.length}, la plus forte hausse d’abord)` : "Produits et historique des prix", VUE ? null : liste.length) + (VUE ? `<p><button class="sec" data-vue="">Voir tous les produits</button></p>` : "");
+  if (liste.length) h += `<label class="tri-produits">Trier <select id="f-tri">${TRIS.map(([v, t]) => `<option value="${v}"${TRI === v ? " selected" : ""}>${t}</option>`).join("")}</select></label>`;
   if (!liste.length) h += `<div class="vide">Aucun produit ${VUE ? "dans ce cas" : "relevé"} sur cette durée avec ces filtres.</div>`;
   else {
     const visibles = toutVoir ? liste : liste.slice(0, 150);
@@ -193,11 +216,13 @@ function afficher() {
     <li><b>Ce qu’il suit</b> : les gaufrettes, les biscuits et les chips vendus en ligne par Carrefour (carrefour.tn, chaque magasin), Géant (geantdrive.tn), Elsabuy (elsabuy.tn, supermarché en ligne, lu le lundi et le jeudi) et MG (mg.tn, seulement ses marques MG J’aime et Koll Youm), toutes marques et tous formats. MG n’indique pas si un produit est en stock : ses prix portent la mention « stock non indiqué par MG », le prix est celui de mg.tn mais le produit peut manquer en magasin ; l’explication est rappelée au-dessus de la liste des produits et quand on touche un produit MG. Elsabuy écrit souvent le nom d’une gamme sans le mot de famille (« Croustina », « Sablito ») : la famille est alors celle que Carrefour et Géant donnent à cette gamme, jamais devinée.</li>
     <li><b>Relevé chaque nuit</b> : un robot lit les prix affichés par les sites des magasins (jamais le prix en rayon ni les promotions papier) et ne garde que les produits en stock. Carrefour : prix le plus courant parmi ses magasins, avec le nombre de magasins.</li>
     <li><b>Les robots et leurs horaires (heure de Tunis)</b> : <b>2h37</b> chaque nuit, un seul robot fait tout, dans l’ordre : lecture de Géant (environ 1 minute), lecture de Carrefour magasin par magasin (environ 3 minutes), le lundi et le jeudi lecture d’Elsabuy (environ 6 minutes, une page par produit, 3 secondes entre deux pages pour ne pas fatiguer ce petit site), lecture de MG (moins d’une minute, quelques recherches, 3 secondes entre deux pages), enregistrement de l’historique, calcul des remises, puis chiffrement et publication de cette page (vers 2h45 ; vers 2h50 le lundi et le jeudi). Un magasin qui ne répond pas est relu la nuit suivante, ses derniers prix restent. Dernier passage : <b>${esc(D.genere_heure || dateFr(D.genere))}</b>. Rien ne tourne en journée, sauf un lancement à la main.</li>
+    <li><b>Trier les produits</b> : au-dessus de la liste des produits, le choix « Trier » range les produits : prix le moins cher ou le plus cher d’abord (dernier prix relevé), prix au kg le moins cher ou le plus cher, en remise d’abord, plus forte baisse ou hausse sur la durée, apparus le plus récemment, marque de A à Z, poids le plus petit d’abord. Un produit sans la donnée (sans poids pour le prix au kg, par exemple) va à la fin.</li>
     <li><b>Historique</b> : chaque prix est gardé jour après jour depuis la mise en service (${dateFr(D.jours[0])}) ; touchez un produit pour voir tous ses prix.</li>
     <li><b>Remises</b> : « prix barré par le magasin » = le site affiche un ancien prix barré (au moins 2 % de moins) ; « constatée dans l’historique » = le prix du jour est au moins ${Math.round((D.seuil || 0.05) * 100)} % sous le prix habituel du produit (médiane des ${D.fenetre || 30} derniers jours, au moins 3 relevés). Chaque remise a sa date de début, sa date de fin (ou « en cours ») et son taux.</li>
     <li><b>Type de remise</b> : « Sur le prix » = prix barré par le magasin ou baisse constatée dans l’historique ; « Sur le lot » = offre que le magasin écrit dans le nom d’un lot (« 3 dont 1 gratuit », « −50 % sur le 2e », « +20 % de produit gratuit », produit offert). Pour une offre sur le lot, la remise indiquée (≈) est celle que l’offre annonce elle-même (3 dont 1 gratuit = 33 %), jamais devinée ; sans pourcentage écrit : « — » et 🎁 au calendrier. Les boutons « Type de remise » au-dessus de la liste filtrent l’un ou l’autre.</li>
     <li><b>Parties repliées</b> : chaque partie (remises, nouveautés, courbes, remises par marque, calendrier, qui suit qui, produits) est fermée au départ pour que la page reste courte ; touchez son titre pour l’ouvrir ou la refermer ; le rapport PDF les imprime toutes ouvertes.</li>
     <li><b>Nouveautés</b> : les nouvelles marques et les nouveaux produits apparus sur les sites des magasins pendant la durée choisie, avec la date d’apparition, le premier magasin et le premier prix. Est nouveau ce qui apparaît après le premier relevé d’un magasin (ce qui était déjà là au premier relevé ne compte jamais) ; ce peut être un vrai nouveau produit ou un produit revenu en stock. Une marque est « nouvelle » si aucun de ses produits n’était là au début du suivi, dans aucun magasin ; « nouvelle dans ce magasin » si elle n’y était pas mais existait ailleurs.</li>
+    <li><b>Les trois blocs du haut</b> : « Les chiffres de la durée » (chaque case mène à sa partie), « Aller directement à » (un bouton par partie) et « Filtrer les produits » ont le même cadre et un titre chacun.</li>
     <li><b>Aller à</b> : en haut de la page, juste sous les chiffres, un grand cadre « Aller directement à » avec un bouton mène directement à chaque partie et l’ouvre (remises, nouveautés, courbes des prix, remises par marque, calendrier, qui suit qui, produits) ; le bouton « ↑ Sommaire » en bas de l’écran (ou le bouton retour du téléphone) ramène à cette rangée ; la liste des remises montre d’abord les ${REM_MAX} plus importantes (« Voir les autres remises » pour tout voir).</li>
     <li><b>Courbes des prix</b> : courbes du prix au kilo, par marque (prix médian au kilo de ses produits) ou par produit (bouton 📈 dans la liste), jusqu’à ${MAX_COURBES} à la fois ; les points marquent les jours en remise ; passez le doigt sur la courbe pour lire les prix d’un jour.</li>
     <li><b>Remises par marque</b> : pour chaque marque, nombre de remises, en cours, remise moyenne et la plus forte (en %), économie moyenne en dinars par paquet, magasins et dates ; touchez une marque pour ne voir qu’elle.</li>
@@ -358,6 +383,7 @@ function brancherCourbe() {
 function brancher(avec, rem, b, nv) {
   const maj = () => { F.periode = $("#f-periode").value; F.de = $("#f-de")?.value || ""; F.a = $("#f-a")?.value || ""; F.cat = $("#f-cat").value; F.ens = $("#f-ens").value; const m = $("#f-marque").value; F.prod = m === F.marque ? ($("#f-prod")?.value || "") : ""; F.marque = m; F.gram = $("#f-gram").value; F.q = $("#f-q").value.trim(); toutVoir = false; REM_TOUT = false; NV_TOUT = false; afficher(); };
   for (const id of ["#f-periode", "#f-de", "#f-a", "#f-cat", "#f-ens", "#f-marque", "#f-prod", "#f-gram"]) $(id)?.addEventListener("change", maj);
+  $("#f-tri")?.addEventListener("change", e => { TRI = e.target.value; toutVoir = false; aller = "produits"; afficher(); });
   let t; $("#f-q").addEventListener("input", () => { clearTimeout(t); t = setTimeout(maj, 300); });
   $("#tout")?.addEventListener("click", () => { toutVoir = true; afficher(); });
   $("#effacer")?.addEventListener("click", () => { F = {...F, cat: "", ens: "", marque: "", prod: "", gram: "", q: ""}; toutVoir = false; afficher(); });
@@ -366,7 +392,7 @@ function brancher(avec, rem, b, nv) {
     ouverts.has(tr.dataset.id) ? ouverts.delete(tr.dataset.id) : ouverts.add(tr.dataset.id); afficher();
   });
   $("#site").querySelectorAll("[data-vue],[data-rem]").forEach(el => el.addEventListener("click", () => {
-    if (el.dataset.vue !== undefined) VUE = el.dataset.vue; if (el.dataset.rem !== undefined) REM = el.dataset.rem;
+    if (el.dataset.vue !== undefined) { VUE = el.dataset.vue; TRI = VUE || "famille"; } if (el.dataset.rem !== undefined) REM = el.dataset.rem;
     toutVoir = false; aller = el.dataset.aller || (el.dataset.vue !== undefined ? "produits" : "remises"); afficher();
   }));
   $("#site").querySelectorAll("[data-courbe-m]").forEach(el => el.addEventListener("click", () => {

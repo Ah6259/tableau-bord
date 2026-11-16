@@ -23,19 +23,22 @@ button:disabled{opacity:.5;cursor:default}
  .haut{grid-template-columns:1fr}.haut .boutons{grid-column:1;grid-row:auto;display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:4px}
  .boutons button{padding:9px 6px;font-size:14px}
 }
-.filtres{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px 12px;padding:12px 14px;margin-top:14px;align-items:end}
+.filtres{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px 8px;align-items:end}
 .filtres label{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--doux);min-width:0}
 .filtres select,.filtres input{font:inherit;font-size:14px;padding:8px 10px;border:1px solid var(--ligne);border-radius:8px;background:var(--fond);color:var(--texte);width:100%;min-width:0}
 .filtres .large{grid-column:1/-1}
 .filtres .actions{grid-column:1/-1;display:flex;justify-content:space-between;align-items:center;gap:10px;font-size:13px;color:var(--doux)}
-@media (max-width:760px){.filtres{grid-template-columns:1fr 1fr;padding:10px 12px}}
-.chiffres{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-top:14px}
+@media (max-width:760px){.filtres{grid-template-columns:1fr 1fr}}
+.chiffres{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px}
 .types-rem{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin:6px 0 10px}.types-rem span{color:var(--doux);font-size:13px}
-.sommaire.carte{margin-top:14px;padding:12px 14px;border:2px solid var(--bleu)}.sommaire-titre{font-weight:700;font-size:16px;margin-bottom:10px}
+/* 16/11/2026 (Ahmed : « un nom à chaque partie et un style homogène ») : les 3 blocs du haut (chiffres, aller à, filtres) ont le MÊME cadre,
+   le même titre (icône + nom) et des cases de la même forme. Règle du modèle « suivi de prix ». */
+.bloc.carte{margin-top:14px;padding:12px 14px;border:2px solid var(--bleu)}
+.bloc-titre{display:flex;align-items:center;gap:8px;font-weight:700;font-size:16px;margin-bottom:10px}
 .sommaire-grille{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px}
 button.saut{display:flex;align-items:center;gap:8px;padding:12px;border-radius:10px;border:1px solid var(--bleu);background:var(--bleuf);color:var(--texte);font:600 15px/1.25 system-ui,sans-serif;text-align:left;cursor:pointer;min-height:48px}
 button.saut .ico{font-size:18px}button.saut b{margin-left:auto;font-size:13px;color:var(--doux);font-weight:600}
-.chiffres .carte{padding:12px 14px}.chiffres b{display:block;font-size:24px}.chiffres span{color:var(--doux);font-size:13px}
+.chiffres .carte{padding:10px 12px;border-radius:10px;border:1px solid var(--bleu);background:var(--bleuf);min-height:48px}.chiffres b{display:block;font-size:24px}.chiffres span{color:var(--doux);font-size:13px}
 button.carte.clic{font:inherit;color:var(--texte);text-align:left;cursor:pointer;transition:border-color .15s,transform .15s}
 button.carte.clic:hover,button.carte.clic:focus-visible{border-color:var(--bleu);outline:none;transform:translateY(-1px)}
 button.carte.clic span::after{content:" ›";color:var(--bleu)}
@@ -74,7 +77,7 @@ details.comment li{margin:4px 0}
  table.cartes tr.det td::before{content:none}
 }
 @media print{
- .filtres,.boutons,button,details.comment,#entree,.sommaire,.vers-sommaire,.types-rem{display:none!important}
+ .filtres,.bloc-filtres,.bloc-chiffres,.boutons,button,details.comment,#entree,.sommaire,.vers-sommaire,.types-rem{display:none!important}
  button.c{display:inline-block!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
  body{background:#fff;color:#000}.carte{border-color:#ccc}
  h2{page-break-after:avoid}tr{page-break-inside:avoid}
@@ -137,3 +140,6 @@ details.section h3{font-size:15px;margin:16px 0 6px}
 /* 15/11/2026 (Ahmed) : produits MG, stock non indiqué : explication bien visible (encadré orange) */
 p.note.mg-stock{background:var(--orangef);color:var(--texte);border-left:4px solid var(--orange);border-radius:8px;padding:8px 12px;margin:8px 0}
 div.sous.mg-stock{background:var(--orangef);color:var(--texte);border-radius:6px;padding:6px 10px;margin:4px 0 6px}
+/* 16/11/2026 : choix du tri au-dessus de la liste des produits */
+.tri-produits{display:flex;align-items:center;gap:8px;margin:4px 0 10px;font-size:13px;color:var(--doux)}
+.tri-produits select{font:inherit;font-size:14px;padding:7px 10px;border:1px solid var(--ligne);border-radius:8px;background:var(--fond);color:var(--texte);max-width:100%;min-width:0}

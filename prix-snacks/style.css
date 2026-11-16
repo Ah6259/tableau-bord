@@ -134,3 +134,6 @@ details.section>summary:hover{background:var(--fond)}
 details.section[open]>summary{border-bottom:1px solid var(--ligne);border-radius:12px 12px 0 0}
 details.section>.corps{padding:8px 14px 14px;min-width:0}
 details.section h3{font-size:15px;margin:16px 0 6px}
+/* 15/11/2026 (Ahmed) : produits MG, stock non indiqué : explication bien visible (encadré orange) */
+p.note.mg-stock{background:var(--orangef);color:var(--texte);border-left:4px solid var(--orange);border-radius:8px;padding:8px 12px;margin:8px 0}
+div.sous.mg-stock{background:var(--orangef);color:var(--texte);border-radius:6px;padding:6px 10px;margin:4px 0 6px}

@@ -23,6 +23,7 @@ const TRIS = [["famille", "Famille puis marque (A → Z)"], ["prix-asc", "Prix :
   ["kg-asc", "Prix au kg : le moins cher d’abord"], ["kg-desc", "Prix au kg : le plus cher d’abord"], ["remise", "En remise d’abord (la plus forte)"],
   ["baisse", "Plus forte baisse sur la période"], ["hausse", "Plus forte hausse sur la période"], ["nouveau", "Apparus le plus récemment"],
   ["marque", "Marque (A → Z)"], ["poids-asc", "Poids : le plus petit d’abord"]];
+let COURBES_TOUT = false;   // 16/11/2026 : toutes les marques des courbes affichées
 let TRI = "famille";
 let VUE = "", REM = "";   // cases du haut cliquables (règle d'Ahmed, 15/11/2026) : VUE = "" | "baisse" | "hausse" ; REM = "" | "cours"
 let aller = null;
@@ -137,7 +138,9 @@ function afficher() {
   const hausses = avec.filter(x => x.s.length > 1 && x.s[x.s.length - 1][1][0] > x.s[0][1][0] + 0.0005).length;
   const marques = [...new Set(D.produits.filter(p => produitPasseSauf(p, "marque", "prod") && p.m).map(p => p.m))].sort((x, y) => x.localeCompare(y, "fr"));
   const nb = (sauf, f) => D.produits.filter(p => (sauf === "marque" ? produitPasseSauf(p, "marque", "prod") : produitPasseSauf(p, sauf)) && f(p)).length;
-  const nomsProd = new Map(); if (F.marque) for (const p of D.produits) if (produitPasseSauf(p, "prod")) { const k = cleProd(p), x = nomsProd.get(k) || {nom: p.n, ens: new Set()}; x.ens.add(p.e); nomsProd.set(k, x); }
+  // 16/11/2026 (Ahmed : « filtrer toutes les marques et leurs produits ») : le filtre Produit marche AUSSI sans marque choisie (tous les
+  // produits, rangés par marque) ; une marque choisie = seulement ses produits, comme avant.
+  const nomsProd = new Map(); for (const p of D.produits) if (produitPasseSauf(p, "prod")) { const k = cleProd(p), x = nomsProd.get(k) || {nom: p.n, m: p.m || "", ens: new Set()}; x.ens.add(p.e); nomsProd.set(k, x); }
   const prodsMarque = [...nomsProd].sort((x, y) => x[1].nom.localeCompare(y[1].nom, "fr"));
   const nbGram = Object.fromEntries(GRAMMAGES.map(([k]) => [k, nb("gram", p => grammage(p) === k)]));
   const actifs = ["cat", "ens", "marque", "prod", "gram", "q"].filter(k => F[k]).length;
@@ -169,7 +172,10 @@ function afficher() {
     <label>Famille <select id="f-cat"><option value="">Toutes (${nb("cat", () => true)})</option>${Object.entries(CATS).map(([v, t]) => `<option value="${v}"${F.cat === v ? " selected" : ""}>${t} (${nb("cat", p => p.c === v)})</option>`).join("")}</select></label>
     <label>Marque <select id="f-marque"><option value="">Toutes (${marques.length})</option>${marques.map(m => `<option value="${esc(m)}"${F.marque === m ? " selected" : ""}>${esc(m)} (${nb("marque", p => p.m === m)})</option>`).join("")}</select></label>
     <label>Grammage <select id="f-gram"><option value="">Tous</option>${GRAMMAGES.map(([v, t]) => `<option value="${v}"${F.gram === v ? " selected" : ""}>${t} (${nbGram[v]})</option>`).join("")}</select></label>
-    <label class="large">Produit <select id="f-prod"${F.marque ? "" : " disabled"}>${F.marque ? `<option value="">Tous les produits ${esc(F.marque)} (${prodsMarque.length})</option>${prodsMarque.map(([k, x]) => `<option value="${esc(k)}"${F.prod === k ? " selected" : ""}>${esc(x.nom)}${x.ens.size > 1 ? ` (${x.ens.size} magasins)` : ""}</option>`).join("")}` : `<option value="">Choisissez d’abord une marque ci-dessus</option>`}</select></label>
+    <label class="large">Produit <select id="f-prod">${(() => { const opt = ([k, x]) => `<option value="${esc(k)}"${F.prod === k ? " selected" : ""}>${esc(x.nom)}${x.ens.size > 1 ? ` (${x.ens.size} magasins)` : ""}</option>`;
+      if (F.marque) return `<option value="">Tous les produits ${esc(F.marque)} (${prodsMarque.length})</option>${prodsMarque.map(opt).join("")}`;
+      const parM = new Map(); for (const e of prodsMarque) { const m = e[1].m || "(marque non lue)"; parM.set(m, [...(parM.get(m) || []), e]); }
+      return `<option value="">Tous les produits (${prodsMarque.length}), rangés par marque</option>${[...parM].sort((x, y) => x[0] === "(marque non lue)" ? 1 : y[0] === "(marque non lue)" ? -1 : x[0].localeCompare(y[0], "fr")).map(([m, l]) => `<optgroup label="${esc(m)} (${l.length})">${l.map(opt).join("")}</optgroup>`).join("")}`; })()}</select></label>
     <label class="large">Chercher <input type="search" id="f-q" value="${esc(F.q)}" placeholder="un mot du nom, une marque, un parfum…"></label>
     <div class="actions"><span>${actifs ? `${actifs} filtre${actifs > 1 ? "s" : ""} actif${actifs > 1 ? "s" : ""} · ${avec.length} produit${avec.length > 1 ? "s" : ""}` : "Aucun filtre : tous les produits"}</span>${actifs ? `<button class="sec" id="effacer">✕ Effacer les filtres</button>` : ""}</div>
   </div></section>
@@ -224,13 +230,15 @@ function afficher() {
     <li><b>Nouveautés</b> : les nouvelles marques et les nouveaux produits apparus sur les sites des magasins pendant la durée choisie, avec la date d’apparition, le premier magasin et le premier prix. Est nouveau ce qui apparaît après le premier relevé d’un magasin (ce qui était déjà là au premier relevé ne compte jamais) ; ce peut être un vrai nouveau produit ou un produit revenu en stock. Une marque est « nouvelle » si aucun de ses produits n’était là au début du suivi, dans aucun magasin ; « nouvelle dans ce magasin » si elle n’y était pas mais existait ailleurs.</li>
     <li><b>Les trois blocs du haut</b> : « Les chiffres de la durée » (chaque case mène à sa partie), « Aller directement à » (un bouton par partie) et « Filtrer les produits » ont le même cadre et un titre chacun.</li>
     <li><b>Aller à</b> : en haut de la page, juste sous les chiffres, un grand cadre « Aller directement à » avec un bouton mène directement à chaque partie et l’ouvre (remises, nouveautés, courbes des prix, remises par marque, calendrier, qui suit qui, produits) ; le bouton « ↑ Sommaire » en bas de l’écran (ou le bouton retour du téléphone) ramène à cette rangée ; la liste des remises montre d’abord les ${REM_MAX} plus importantes (« Voir les autres remises » pour tout voir).</li>
+    <li><b>Marques des courbes</b> : les courbes sont en prix au kilo, donc seules les marques dont le poids des produits est connu y sont (le nombre est écrit) ; les 15 plus grosses d’abord, puis « Voir les autres marques » ; la marque choisie dans le filtre « Marque » a sa courbe d’office.</li>
+    <li><b>Filtre Produit</b> : il marche aussi sans choisir de marque : tous les produits, rangés par marque ; une marque choisie = seulement ses produits.</li>
     <li><b>Courbes des prix</b> : courbes du prix au kilo, par marque (prix médian au kilo de ses produits) ou par produit (bouton 📈 dans la liste), jusqu’à ${MAX_COURBES} à la fois ; les points marquent les jours en remise ; passez le doigt sur la courbe pour lire les prix d’un jour.</li>
     <li><b>Remises par marque</b> : pour chaque marque, nombre de remises, en cours, remise moyenne et la plus forte (en %), économie moyenne en dinars par paquet, magasins et dates ; touchez une marque pour ne voir qu’elle.</li>
     <li><b>Calendrier des remises</b> : une ligne par marque et une case par jour relevé, colorée les jours de remise (plus foncée quand la remise est plus forte) : on voit d’un coup d’œil quelles marques font des remises en même temps.</li>
     <li><b>Qui suit qui ?</b> : quand une marque lance une remise, une autre en lance-t-elle une dans les 7 jours ? Nombre de fois, le même jour, délai moyen. Une remise déjà là au premier relevé ne compte pas (début inconnu). Ce n’est pas une preuve de copie : le tableau devient parlant après quelques semaines.</li>
     <li><b>Les cases de chiffres sont des boutons</b> : « produits suivis » ouvre la liste, « remises en cours » et « remises sur la durée » ouvrent les remises, « prix en baisse » et « prix en hausse » montrent ces produits triés par variation.</li>
     <li><b>Durée au choix</b> : en haut, dans le bloc « Les chiffres », le choix « des 7, 30 ou 90 derniers jours », « de tout l’historique » ou « entre deux dates » ; les chiffres, les remises, les variations et toute la page se recalculent sur cette période, écrite en clair dans les cases (« remises sur ces 30 jours »).</li>
-    <li><b>Filtres</b> : famille (gaufrettes, biscuits, chips), magasin, marque, <b>produit</b> (une fois la marque choisie, la liste de ses produits ; le même nom vendu dans plusieurs magasins est un seul choix), <b>grammage</b> (portion jusqu’à 30 g, 31 à 60 g, 61 à 120 g, 121 à 250 g, plus de 250 g, lots de plusieurs sachets, poids non lu ; le poids est celui écrit par le magasin, un lot « 2 × 70 g » compte 140 g), recherche par mot.</li>
+    <li><b>Filtres</b> : famille (gaufrettes, biscuits, chips), magasin, marque, <b>produit</b> (tous les produits rangés par marque, ou, une fois la marque choisie, la liste de ses produits ; le même nom vendu dans plusieurs magasins est un seul choix), <b>grammage</b> (portion jusqu’à 30 g, 31 à 60 g, 61 à 120 g, 121 à 250 g, plus de 250 g, lots de plusieurs sachets, poids non lu ; le poids est celui écrit par le magasin, un lot « 2 × 70 g » compte 140 g), recherche par mot.</li>
     <li><b>Exporter Excel</b> : un classeur avec l’historique (une ligne par produit, magasin et jour), les remises (avec l’économie en dinars), les remises par marque, « qui suit qui », les nouveautés et la liste des produits, sur la durée et les filtres choisis.</li>
     <li><b>Rapport (PDF)</b> : imprime la page telle qu’elle est filtrée (le téléphone ou l’ordinateur propose « Enregistrer en PDF »).</li>
     <li><b>Ce qui n’est pas compté</b> : les cakes, gâteaux, muffins, barres de céréales et tout produit dont le nom ne dit pas clairement gaufrette, biscuit ou chips (rien n’est deviné). Une marque n’est écrite que si le magasin l’écrit ou si elle est connue.</li>
@@ -287,10 +295,17 @@ function concurrence(rem, b) {
   const A = window.SNACKS_ANALYSE, [de, a] = b, joursP = D.jours.filter(j => dansPeriode(j, b));
   const sansMarque = D.produits.filter(p => produitPasseSauf(p, "marque"));
   const parMarqueProduits = new Map(); for (const p of sansMarque) if (p.m && p.g) parMarqueProduits.set(p.m, (parMarqueProduits.get(p.m) || 0) + 1);
-  const topMarques = [...parMarqueProduits].sort((x, y) => y[1] - x[1]).slice(0, 15).map(x => x[0]);
-  // courbes : choix du visiteur, sinon les 3 marques qui ont le plus de produits (choix automatique, dit)
+  // 16/11/2026 (Ahmed : « pourquoi dans les courbes seulement ces marques alors que le filtre en a d'autres ? ») : TOUTES les marques dont le
+  // poids des produits est connu (un prix au kilo en a besoin), les 15 plus grosses d'abord + « Voir les N autres » ; la marque choisie dans
+  // le filtre a sa courbe d'office ; la phrase dit combien de marques ont un poids sur combien.
+  const marquesPoids = [...parMarqueProduits].sort((x, y) => y[1] - x[1] || x[0].localeCompare(y[0], "fr")).map(x => x[0]);
+  const nbMarques = new Set(sansMarque.filter(p => p.m).map(p => p.m)).size;
+  const marquesVues = COURBES_TOUT ? marquesPoids : [...new Set([...marquesPoids.slice(0, 15), ...COURBES.filter(c => c.t === "m").map(c => c.k), ...(F.marque && parMarqueProduits.has(F.marque) ? [F.marque] : [])])];
+  const topMarques = marquesVues;
+  // courbes : choix du visiteur ; sinon la marque du filtre + les 2 plus grosses autres, sinon les 3 plus grosses (choix automatique, dit)
   const auto = !COURBES.length;
-  const items = auto ? topMarques.slice(0, 3).map((k, i) => ({t: "m", k, slot: i + 1})) : COURBES;
+  const depart = F.marque && parMarqueProduits.has(F.marque) ? [F.marque, ...marquesPoids.filter(m => m !== F.marque).slice(0, 2)] : marquesPoids.slice(0, 3);
+  const items = auto ? depart.map((k, i) => ({t: "m", k, slot: i + 1})) : COURBES;
   const series = items.map(it => {
     if (it.t === "m") return {nom: it.k, sous: "prix médian au kilo de ses produits", slot: it.slot, pts: A.courbeMarque(sansMarque, it.k, joursP), it};
     const p = D.produits.find(x => x.id === it.k);
@@ -298,8 +313,9 @@ function concurrence(rem, b) {
   }).filter(Boolean);
   window.__COURBE = {joursP, series};
   let h = section("courbes", "Courbes des prix (au kilo)", series.length ? `${series.length} courbe${series.length > 1 ? "s" : ""}` : null) + `
-  <div class="carte bloc-courbe"><div class="sous">${auto ? "Choix automatique : les 3 marques qui ont le plus de produits. " : ""}Touchez une marque pour l’ajouter ou la retirer (${MAX_COURBES} courbes au plus) ; un produit s’ajoute avec 📈 dans la liste des produits.</div>
+  <div class="carte bloc-courbe"><div class="sous">Courbes en prix au kilo : seulement les marques dont le poids des produits est connu (${marquesPoids.length} marque${marquesPoids.length > 1 ? "s" : ""} sur ${nbMarques}). ${auto ? (F.marque && parMarqueProduits.has(F.marque) ? `Choix automatique : ${esc(F.marque)} (marque du filtre) et les 2 marques qui ont le plus de produits. ` : F.marque ? `${esc(F.marque)} n’a aucun produit dont le poids est connu : pas de courbe au kilo. ` : "Choix automatique : les 3 marques qui ont le plus de produits. ") : ""}Touchez une marque pour l’ajouter ou la retirer (${MAX_COURBES} courbes au plus) ; un produit s’ajoute avec 📈 dans la liste des produits.</div>
   <div class="puces">${topMarques.map(m => `<button class="sec puce" data-courbe-m="${esc(m)}" aria-pressed="${!auto && COURBES.some(c => c.t === "m" && c.k === m)}">${esc(m)}</button>`).join("")}</div>
+  ${!COURBES_TOUT && marquesPoids.length > marquesVues.length ? `<p><button class="sec" id="courbes-tout">Voir les ${marquesPoids.length - marquesVues.length} autres marques</button></p>` : ""}
   ${COURBE_MSG ? `<div class="msg-courbe">${esc(COURBE_MSG)}</div>` : ""}
   <div class="legende">${series.map((s, i) => `<span class="leg"><i class="s${s.slot}"></i>${esc(s.nom)} <span class="sous">${esc(s.sous)}</span>${!auto ? ` <button class="retirer" data-retire="${i}" aria-label="Retirer ${esc(s.nom)}">×</button>` : ""}</span>`).join("")}</div>
   ${courbeSVG(series, joursP)}<div id="courbe-info" class="sous" aria-live="polite">Passez le doigt ou la souris sur la courbe pour lire les prix d’un jour.</div></div>`;
@@ -410,6 +426,7 @@ function brancher(avec, rem, b, nv) {
   // 15/11/2026 (le frère d'Ahmed : « comment revenir aux autres parties ? ») : un saut est noté dans l'historique du téléphone (le bouton
   // « retour » ramène au sommaire) et le bouton flottant « ↑ Sommaire » apparaît dès que le sommaire n'est plus à l'écran.
   $("#site").querySelectorAll("details.section").forEach(d => d.addEventListener("toggle", () => { if (!IMPRESSION && d.isConnected) d.open ? OUVERTES.add(d.id) : OUVERTES.delete(d.id); }));
+  $("#courbes-tout")?.addEventListener("click", () => { COURBES_TOUT = true; aller = "courbes"; afficher(); });
   $("#nv-tout")?.addEventListener("click", () => { NV_TOUT = true; aller = "nouveautes"; afficher(); });
   $("#site").querySelectorAll("[data-saut]").forEach(el => el.addEventListener("click", () => { const c = $("#" + el.dataset.saut); if (c) {
     if (c.tagName === "DETAILS") { c.open = true; OUVERTES.add(c.id); }

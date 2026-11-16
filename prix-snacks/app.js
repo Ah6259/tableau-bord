@@ -11,7 +11,7 @@ const dateFr = j => j ? j.slice(8, 10) + "/" + j.slice(5, 7) + "/" + j.slice(0, 
 const lire = k => { try { return localStorage.getItem(k); } catch { return null; } };
 const ecrire = (k, v) => { try { v == null ? localStorage.removeItem(k) : localStorage.setItem(k, v); } catch {} };
 const CATS = {gaufrettes: "Gaufrettes", biscuits: "Biscuits", chips: "Chips"};
-let D = null, F = {periode: "30", de: "", a: "", cat: "", ens: "", marque: "", prod: "", gram: "", q: ""}, ouverts = new Set(), toutVoir = false;
+let D = null, F = {periode: "30", de: "", a: "", cat: [], ens: [], marque: [], prod: [], gram: [], q: ""}, ouverts = new Set(), toutVoir = false;
 // parties repliées par défaut (Ahmed, 15/11/2026 : « les sections doivent être compactes par défaut, c'est plus facile à lire ») ;
 // une partie s'ouvre quand on la touche, par « Aller directement à » ou par une case de chiffres ; le rapport PDF les imprime toutes
 const OUVERTES = new Set(); let NV_TOUT = false, IMPRESSION = false, NV_CACHE = null;
@@ -76,15 +76,17 @@ function bornes() {
 }
 const dansPeriode = (j, [de, a]) => j >= de && j <= a;
 function produitPasse(p) {
-  if (F.cat && p.c !== F.cat) return false;
-  if (F.ens && p.e !== F.ens) return false;
-  if (F.marque && p.m !== F.marque) return false;
-  if (F.prod && cleProd(p) !== F.prod) return false;
-  if (F.gram && grammage(p) !== F.gram) return false;
+  // 16/11/2026 (Ahmed : « plus qu'une sélection par filtre ») : chaque filtre est une LISTE de choix ; dans un filtre les choix s'ajoutent
+  // (MAD ou LBM), entre deux filtres ils se combinent ((MAD ou LBM) et chips) ; liste vide = tout
+  if (F.cat.length && !F.cat.includes(p.c)) return false;
+  if (F.ens.length && !F.ens.includes(p.e)) return false;
+  if (F.marque.length && !F.marque.includes(p.m)) return false;
+  if (F.prod.length && !F.prod.includes(cleProd(p))) return false;
+  if (F.gram.length && !F.gram.includes(grammage(p))) return false;
   if (F.q) { const t = (p.n + " " + p.m).toLowerCase(); if (!F.q.toLowerCase().split(/\s+/).every(m => t.includes(m))) return false; }
   return true;
 }
-function produitPasseSauf(p, ...sauf) { const g = sauf.map(k => F[k]); for (const k of sauf) F[k] = ""; const r = produitPasse(p); sauf.forEach((k, i) => F[k] = g[i]); return r; }
+function produitPasseSauf(p, ...sauf) { const g = sauf.map(k => F[k]); for (const k of sauf) F[k] = Array.isArray(F[k]) ? [] : ""; const r = produitPasse(p); sauf.forEach((k, i) => F[k] = g[i]); return r; }
 function serie(p, b) { return D.jours.filter(j => dansPeriode(j, b) && p.p[j]).map(j => [j, p.p[j]]); }
 
 // ---------- affichage
@@ -122,6 +124,58 @@ function trier(liste, varDe) {
     "poids-asc": num(x => x.p.g || null, 1)};
   return [...liste].sort(C[TRI] || base);
 }
+// ---------- filtres à choix multiples (16/11/2026, Ahmed : « plus qu'une sélection » ; « les choix doivent être sur une ligne »)
+// Un bouton qui ouvre une liste de cases à cocher : UNE ligne par choix (nom coupé par « … », nombre à droite), « Tout cocher / Tout
+// décocher », case « Chercher » pour les longues listes, regroupement (produits rangés par marque). Les choix s'appliquent à « Valider »
+// ou en refermant la liste. Le nombre de chaque choix est le vrai résultat avec les autres filtres (règle « le nombre d'un menu »).
+let MULTI_OUVERT = "";
+// dans une liste rangée par marque, la marque déjà écrite en tête du groupe est retirée du nom (on voit le format et le parfum)
+const sansMarque = (nom, m) => { const r = nom.replace(new RegExp("\\s*" + m.replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/\s+/g, "\\s*") + "\\s*", "i"), " ").replace(/\s+/g, " ").trim(); return r.length >= 3 ? r : nom; };
+function multi(f, lab, tous, choix, o = {}) {
+  const sel = F[f], noms = sel.map(v => (choix.find(c => c.v === v) || {t: v}).t);
+  const resume = !sel.length ? tous : sel.length === 1 ? noms[0] : `${noms[0]} + ${sel.length - 1}`;
+  let lignes = "", g = null;
+  for (const c of choix) {
+    if (c.g !== undefined && c.g !== g) { g = c.g; lignes += `<div class="multi-groupe" data-g="${esc(g)}">${esc(g)} <span>(${choix.filter(x => x.g === g).length})</span></div>`; }
+    lignes += `<label class="multi-ligne" data-v="${esc(c.v)}"${c.g !== undefined ? ` data-g="${esc(c.g)}"` : ""} title="${esc(c.t)}"><input type="checkbox" value="${esc(c.v)}"${sel.includes(c.v) ? " checked" : ""}><span class="multi-nom">${esc(c.g ? sansMarque(c.t, c.g) : c.t)}</span>${c.n !== "" && c.n != null ? `<span class="multi-nb">${typeof c.n === "number" ? c.n : esc(c.n)}</span>` : ""}</label>`;
+  }
+  const ouvert = MULTI_OUVERT === f;
+  return `<div class="multi${o.large ? " large" : ""}${ouvert ? " ouvert" : ""}" data-f="${f}"><span class="multi-lab" id="lab-${f}">${lab}${sel.length > 1 ? ` <b>(${sel.length})</b>` : ""}</span>
+    <button type="button" class="multi-bouton" id="f-${f}" aria-labelledby="lab-${f} f-${f}" aria-expanded="${ouvert}"><span class="multi-val">${esc(resume)}</span></button>
+    <div class="multi-panneau"${ouvert ? "" : " hidden"}>${o.chercher ? `<input type="search" class="multi-q" placeholder="Chercher dans la liste…" aria-label="Chercher dans ${lab}">` : ""}
+      <div class="multi-actions"><button type="button" class="sec mini" data-tout>Tout cocher</button><button type="button" class="sec mini" data-rien>Tout décocher</button></div>
+      <div class="multi-liste">${lignes || `<div class="vide">Aucun choix avec les autres filtres.</div>`}</div>
+      <button type="button" class="multi-ok">Valider</button></div></div>`;
+}
+function brancherMulti() {
+  const appliquer = el => {
+    const f = el.dataset.f, vals = [...el.querySelectorAll(".multi-ligne input:checked")].map(i => i.value);
+    const avant = F[f].join("\u0001"); MULTI_OUVERT = "";
+    if (vals.join("\u0001") === avant) { el.classList.remove("ouvert"); el.querySelector(".multi-panneau").hidden = true; el.querySelector(".multi-bouton").setAttribute("aria-expanded", "false"); return; }
+    F[f] = vals; if (f === "marque") F.prod = F.prod.filter(k => D.produits.some(p => cleProd(p) === k && (!vals.length || vals.includes(p.m))));
+    toutVoir = false; REM_TOUT = false; NV_TOUT = false; afficher();
+  };
+  document.querySelectorAll(".multi").forEach(el => {
+    const pan = el.querySelector(".multi-panneau"), bt = el.querySelector(".multi-bouton");
+    bt.addEventListener("click", () => {
+      if (!pan.hidden) return appliquer(el);
+      document.querySelectorAll(".multi.ouvert").forEach(x => { if (x !== el) appliquer(x); });
+      if (!el.isConnected) return document.querySelector(`.multi[data-f="${el.dataset.f}"] .multi-bouton`)?.click();
+      MULTI_OUVERT = el.dataset.f; el.classList.add("ouvert"); pan.hidden = false; bt.setAttribute("aria-expanded", "true"); el.querySelector(".multi-q")?.focus();
+    });
+    el.querySelector(".multi-ok").addEventListener("click", () => appliquer(el));
+    const visibles = () => [...el.querySelectorAll(".multi-ligne")].filter(l => !l.hidden);
+    el.querySelector("[data-tout]").addEventListener("click", () => visibles().forEach(l => l.querySelector("input").checked = true));
+    el.querySelector("[data-rien]").addEventListener("click", () => visibles().forEach(l => l.querySelector("input").checked = false));
+    el.querySelector(".multi-q")?.addEventListener("input", e => {
+      const q = e.target.value.trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+      el.querySelectorAll(".multi-ligne").forEach(l => l.hidden = !!q && !(l.title + " " + (l.dataset.g || "")).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").includes(q));
+      el.querySelectorAll(".multi-groupe").forEach(gr => gr.hidden = !el.querySelector(`.multi-ligne[data-g="${CSS.escape(gr.dataset.g)}"]:not([hidden])`));
+    });
+  });
+  if (!window.__multiDoc) { window.__multiDoc = true; document.addEventListener("click", e => { const o = document.querySelector(".multi.ouvert"); if (o && !o.contains(e.target)) o.querySelector(".multi-ok").click(); }); }
+}
+
 function afficher() {
   const b = bornes(), [de, a] = b;
   // 16/11/2026 (Ahmed : « que veut dire chiffres de la durée ? ») : la période choisie est écrite en clair partout, jamais « la durée »
@@ -143,7 +197,7 @@ function afficher() {
   const nomsProd = new Map(); for (const p of D.produits) if (produitPasseSauf(p, "prod")) { const k = cleProd(p), x = nomsProd.get(k) || {nom: p.n, m: p.m || "", ens: new Set()}; x.ens.add(p.e); nomsProd.set(k, x); }
   const prodsMarque = [...nomsProd].sort((x, y) => x[1].nom.localeCompare(y[1].nom, "fr"));
   const nbGram = Object.fromEntries(GRAMMAGES.map(([k]) => [k, nb("gram", p => grammage(p) === k)]));
-  const actifs = ["cat", "ens", "marque", "prod", "gram", "q"].filter(k => F[k]).length;
+  const actifs = ["cat", "ens", "marque", "prod", "gram", "q"].filter(k => Array.isArray(F[k]) ? F[k].length : F[k]).length;
   // une enseigne qui n'a pas répondu à UN passage n'est pas « en panne » (règle § 51) : ses derniers prix lus restent, la date le dit ;
   // « en panne » seulement si aucune lecture réussie depuis plus de 2 jours
   const ageJ = j => j ? Math.round((Date.parse(D.genere) - Date.parse(j)) / 864e5) : 99;
@@ -153,7 +207,7 @@ function afficher() {
     <h1>Prix des gaufrettes, biscuits et chips</h1>
     <div class="etat">${Object.entries(D.etat).map(([k, v]) => pastille(k, v)).join("")}<span class="p in">${D.jours.length} relevé${D.jours.length > 1 ? "s" : ""} · du ${dateFr(D.jours[0])} au ${dateFr(D.jours[D.jours.length - 1])}</span><span class="sous">mis à jour le ${esc(D.genere_heure || dateFr(D.genere))}, chaque nuit</span></div>
     <div class="boutons"><button class="sec" id="excel">⬇ Excel</button><button class="sec" id="imprimer">🖨 Rapport PDF</button><button class="sec" id="sortir" title="${lire("snacks-code") ? "Ferme la page et oublie le code sur cet appareil" : "Ferme la page"}">✕ Fermer${lire("snacks-code") ? "<small>oublier le code</small>" : ""}</button></div></div>
-  <div class="rapport-titre sous">Rapport du ${dateFr(de)} au ${dateFr(a)} · ${F.cat ? CATS[F.cat] : "gaufrettes, biscuits et chips"}${F.ens ? " · " + D.enseignes[F.ens] : ""}${F.marque ? " · " + esc(F.marque) : ""}${F.prod ? " · " + esc(nomsProd.get(F.prod)?.nom || F.prod) : ""}${F.gram ? " · " + GRAMMAGES.find(([k]) => k === F.gram)[1] : ""}</div>
+  <div class="rapport-titre sous">Rapport du ${dateFr(de)} au ${dateFr(a)} · ${F.cat.length ? F.cat.map(c => CATS[c]).join(", ") : "gaufrettes, biscuits et chips"}${F.ens.length ? " · " + F.ens.map(e => D.enseignes[e]).join(", ") : ""}${F.marque.length ? " · " + esc(F.marque.join(", ")) : ""}${F.prod.length ? " · " + esc(F.prod.map(k => nomsProd.get(k)?.nom || k).join(", ")) : ""}${F.gram.length ? " · " + F.gram.map(g => GRAMMAGES.find(([k]) => k === g)[1]).join(", ") : ""}</div>
   <section class="bloc bloc-chiffres carte" aria-label="Les chiffres"><div class="bloc-titre bloc-periode"><span aria-hidden="true">📊</span> <label for="f-periode">Les chiffres</label> <select id="f-periode" aria-label="Période des chiffres et de toute la page">${[["7", "des 7 derniers jours"], ["30", "des 30 derniers jours"], ["90", "des 90 derniers jours"], ["tout", "de tout l’historique"], ["perso", "entre deux dates"]].map(([v, t]) => `<option value="${v}"${F.periode === v ? " selected" : ""}>${t}</option>`).join("")}</select></div>
   ${F.periode === "perso" ? `<div class="periode-dates"><label>Du <input type="date" id="f-de" value="${esc(F.de || de)}" min="${D.jours[0]}" max="${D.jours[D.jours.length - 1]}"></label><label>Au <input type="date" id="f-a" value="${esc(F.a || a)}" min="${D.jours[0]}" max="${D.jours[D.jours.length - 1]}"></label></div>` : ""}
   <div class="chiffres">
@@ -168,14 +222,11 @@ function afficher() {
   <nav class="sommaire bloc carte" aria-label="Aller à une partie"><div class="sommaire-titre bloc-titre"><span aria-hidden="true">📍</span> Aller directement à</div><div class="sommaire-grille">${[["remises", "🏷️", "Remises", rem.length], ["nouveautes", "🆕", "Nouveautés", nv.produits.length], ["courbes", "📈", "Courbes des prix", null], ["par-marque", "🏢", "Remises par marque", null], ["calendrier", "📅", "Calendrier des remises", null], ["qui-suit", "🔁", "Qui suit qui ?", null], ["produits", "🛒", "Produits", avec.length]].map(([k, ico, t, n]) => `<button class="saut" data-saut="${k}"><span class="ico" aria-hidden="true">${ico}</span><span>${t}</span>${n != null ? `<b>${n}</b>` : ""}</button>`).join("")}</div></nav>
   <section class="bloc bloc-filtres carte" aria-label="Filtrer les produits"><div class="bloc-titre"><span aria-hidden="true">🔎</span> Filtrer les produits</div>
   <div class="filtres">
-    <label>Magasin <select id="f-ens"><option value="">Tous (${nb("ens", () => true)})</option>${Object.entries(D.enseignes).map(([v, t]) => `<option value="${v}"${F.ens === v ? " selected" : ""}>${t} (${nb("ens", p => p.e === v)})</option>`).join("")}</select></label>
-    <label>Famille <select id="f-cat"><option value="">Toutes (${nb("cat", () => true)})</option>${Object.entries(CATS).map(([v, t]) => `<option value="${v}"${F.cat === v ? " selected" : ""}>${t} (${nb("cat", p => p.c === v)})</option>`).join("")}</select></label>
-    <label>Marque <select id="f-marque"><option value="">Toutes (${marques.length})</option>${marques.map(m => `<option value="${esc(m)}"${F.marque === m ? " selected" : ""}>${esc(m)} (${nb("marque", p => p.m === m)})</option>`).join("")}</select></label>
-    <label>Grammage <select id="f-gram"><option value="">Tous</option>${GRAMMAGES.map(([v, t]) => `<option value="${v}"${F.gram === v ? " selected" : ""}>${t} (${nbGram[v]})</option>`).join("")}</select></label>
-    <label class="large">Produit <select id="f-prod">${(() => { const opt = ([k, x]) => `<option value="${esc(k)}"${F.prod === k ? " selected" : ""}>${esc(x.nom)}${x.ens.size > 1 ? ` (${x.ens.size} magasins)` : ""}</option>`;
-      if (F.marque) return `<option value="">Tous les produits ${esc(F.marque)} (${prodsMarque.length})</option>${prodsMarque.map(opt).join("")}`;
-      const parM = new Map(); for (const e of prodsMarque) { const m = e[1].m || "(marque non lue)"; parM.set(m, [...(parM.get(m) || []), e]); }
-      return `<option value="">Tous les produits (${prodsMarque.length}), rangés par marque</option>${[...parM].sort((x, y) => x[0] === "(marque non lue)" ? 1 : y[0] === "(marque non lue)" ? -1 : x[0].localeCompare(y[0], "fr")).map(([m, l]) => `<optgroup label="${esc(m)} (${l.length})">${l.map(opt).join("")}</optgroup>`).join("")}`; })()}</select></label>
+    ${multi("ens", "Magasin", "Tous", Object.entries(D.enseignes).map(([v, t]) => ({v, t, n: nb("ens", p => p.e === v)})))}
+    ${multi("cat", "Famille", "Toutes", Object.entries(CATS).map(([v, t]) => ({v, t, n: nb("cat", p => p.c === v)})))}
+    ${multi("marque", "Marque", "Toutes", marques.map(m => ({v: m, t: m, n: nb("marque", p => p.m === m)})), {chercher: true})}
+    ${multi("gram", "Grammage", "Tous", GRAMMAGES.map(([v, t]) => ({v, t, n: nbGram[v]})))}
+    ${multi("prod", "Produit", "Tous", prodsMarque.map(([k, x]) => ({v: k, t: x.nom, n: x.ens.size > 1 ? `${x.ens.size} magasins` : "", g: x.m || "(marque non lue)"})).sort((x, y) => (x.g === "(marque non lue)") - (y.g === "(marque non lue)") || x.g.localeCompare(y.g, "fr") || x.t.localeCompare(y.t, "fr")), {chercher: true, large: true})}
     <label class="large">Chercher <input type="search" id="f-q" value="${esc(F.q)}" placeholder="un mot du nom, une marque, un parfum…"></label>
     <div class="actions"><span>${actifs ? `${actifs} filtre${actifs > 1 ? "s" : ""} actif${actifs > 1 ? "s" : ""} · ${avec.length} produit${avec.length > 1 ? "s" : ""}` : "Aucun filtre : tous les produits"}</span>${actifs ? `<button class="sec" id="effacer">✕ Effacer les filtres</button>` : ""}</div>
   </div></section>
@@ -238,6 +289,7 @@ function afficher() {
     <li><b>Qui suit qui ?</b> : quand une marque lance une remise, une autre en lance-t-elle une dans les 7 jours ? Nombre de fois, le même jour, délai moyen. Une remise déjà là au premier relevé ne compte pas (début inconnu). Ce n’est pas une preuve de copie : le tableau devient parlant après quelques semaines.</li>
     <li><b>Les cases de chiffres sont des boutons</b> : « produits suivis » ouvre la liste, « remises en cours » et « remises sur la durée » ouvrent les remises, « prix en baisse » et « prix en hausse » montrent ces produits triés par variation.</li>
     <li><b>Durée au choix</b> : en haut, dans le bloc « Les chiffres », le choix « des 7, 30 ou 90 derniers jours », « de tout l’historique » ou « entre deux dates » ; les chiffres, les remises, les variations et toute la page se recalculent sur cette période, écrite en clair dans les cases (« remises sur ces 30 jours »).</li>
+    <li><b>Filtres à plusieurs choix</b> : chaque filtre (magasin, famille, marque, grammage, produit) ouvre une liste de cases à cocher, un choix par ligne avec son nombre de produits ; on peut cocher plusieurs choix (par exemple deux marques) : dans un même filtre les choix s’ajoutent, entre deux filtres ils se combinent ; « Tout cocher », « Tout décocher », une case « Chercher » pour les marques et les produits, puis « Valider ».</li>
     <li><b>Filtres</b> : famille (gaufrettes, biscuits, chips), magasin, marque, <b>produit</b> (tous les produits rangés par marque, ou, une fois la marque choisie, la liste de ses produits ; le même nom vendu dans plusieurs magasins est un seul choix), <b>grammage</b> (portion jusqu’à 30 g, 31 à 60 g, 61 à 120 g, 121 à 250 g, plus de 250 g, lots de plusieurs sachets, poids non lu ; le poids est celui écrit par le magasin, un lot « 2 × 70 g » compte 140 g), recherche par mot.</li>
     <li><b>Exporter Excel</b> : un classeur avec l’historique (une ligne par produit, magasin et jour), les remises (avec l’économie en dinars), les remises par marque, « qui suit qui », les nouveautés et la liste des produits, sur la durée et les filtres choisis.</li>
     <li><b>Rapport (PDF)</b> : imprime la page telle qu’elle est filtrée (le téléphone ou l’ordinateur propose « Enregistrer en PDF »).</li>
@@ -300,11 +352,12 @@ function concurrence(rem, b) {
   // le filtre a sa courbe d'office ; la phrase dit combien de marques ont un poids sur combien.
   const marquesPoids = [...parMarqueProduits].sort((x, y) => y[1] - x[1] || x[0].localeCompare(y[0], "fr")).map(x => x[0]);
   const nbMarques = new Set(sansMarque.filter(p => p.m).map(p => p.m)).size;
-  const marquesVues = COURBES_TOUT ? marquesPoids : [...new Set([...marquesPoids.slice(0, 15), ...COURBES.filter(c => c.t === "m").map(c => c.k), ...(F.marque && parMarqueProduits.has(F.marque) ? [F.marque] : [])])];
+  const marquesVues = COURBES_TOUT ? marquesPoids : [...new Set([...marquesPoids.slice(0, 15), ...COURBES.filter(c => c.t === "m").map(c => c.k), ...F.marque.filter(m => parMarqueProduits.has(m))])];
   const topMarques = marquesVues;
   // courbes : choix du visiteur ; sinon la marque du filtre + les 2 plus grosses autres, sinon les 3 plus grosses (choix automatique, dit)
   const auto = !COURBES.length;
-  const depart = F.marque && parMarqueProduits.has(F.marque) ? [F.marque, ...marquesPoids.filter(m => m !== F.marque).slice(0, 2)] : marquesPoids.slice(0, 3);
+  const duFiltre = F.marque.filter(m => parMarqueProduits.has(m)).slice(0, MAX_COURBES);
+  const depart = duFiltre.length ? (duFiltre.length >= 3 ? duFiltre : [...duFiltre, ...marquesPoids.filter(m => !duFiltre.includes(m)).slice(0, 3 - duFiltre.length)]) : marquesPoids.slice(0, 3);
   const items = auto ? depart.map((k, i) => ({t: "m", k, slot: i + 1})) : COURBES;
   const series = items.map(it => {
     if (it.t === "m") return {nom: it.k, sous: "prix médian au kilo de ses produits", slot: it.slot, pts: A.courbeMarque(sansMarque, it.k, joursP), it};
@@ -313,7 +366,7 @@ function concurrence(rem, b) {
   }).filter(Boolean);
   window.__COURBE = {joursP, series};
   let h = section("courbes", "Courbes des prix (au kilo)", series.length ? `${series.length} courbe${series.length > 1 ? "s" : ""}` : null) + `
-  <div class="carte bloc-courbe"><div class="sous">Courbes en prix au kilo : seulement les marques dont le poids des produits est connu (${marquesPoids.length} marque${marquesPoids.length > 1 ? "s" : ""} sur ${nbMarques}). ${auto ? (F.marque && parMarqueProduits.has(F.marque) ? `Choix automatique : ${esc(F.marque)} (marque du filtre) et les 2 marques qui ont le plus de produits. ` : F.marque ? `${esc(F.marque)} n’a aucun produit dont le poids est connu : pas de courbe au kilo. ` : "Choix automatique : les 3 marques qui ont le plus de produits. ") : ""}Touchez une marque pour l’ajouter ou la retirer (${MAX_COURBES} courbes au plus) ; un produit s’ajoute avec 📈 dans la liste des produits.</div>
+  <div class="carte bloc-courbe"><div class="sous">Courbes en prix au kilo : seulement les marques dont le poids des produits est connu (${marquesPoids.length} marque${marquesPoids.length > 1 ? "s" : ""} sur ${nbMarques}). ${auto ? (duFiltre.length ? `Choix automatique : ${esc(duFiltre.join(", "))} (marque${duFiltre.length > 1 ? "s" : ""} du filtre)${duFiltre.length < 3 ? " et les marques qui ont le plus de produits" : ""}. ` : F.marque.length ? "Les marques du filtre n’ont aucun produit dont le poids est connu : pas de courbe au kilo pour elles. " : "Choix automatique : les 3 marques qui ont le plus de produits. ") : ""}Touchez une marque pour l’ajouter ou la retirer (${MAX_COURBES} courbes au plus) ; un produit s’ajoute avec 📈 dans la liste des produits.</div>
   <div class="puces">${topMarques.map(m => `<button class="sec puce" data-courbe-m="${esc(m)}" aria-pressed="${!auto && COURBES.some(c => c.t === "m" && c.k === m)}">${esc(m)}</button>`).join("")}</div>
   ${!COURBES_TOUT && marquesPoids.length > marquesVues.length ? `<p><button class="sec" id="courbes-tout">Voir les ${marquesPoids.length - marquesVues.length} autres marques</button></p>` : ""}
   ${COURBE_MSG ? `<div class="msg-courbe">${esc(COURBE_MSG)}</div>` : ""}
@@ -397,12 +450,13 @@ function brancherCourbe() {
 }
 
 function brancher(avec, rem, b, nv) {
-  const maj = () => { F.periode = $("#f-periode").value; F.de = $("#f-de")?.value || ""; F.a = $("#f-a")?.value || ""; F.cat = $("#f-cat").value; F.ens = $("#f-ens").value; const m = $("#f-marque").value; F.prod = m === F.marque ? ($("#f-prod")?.value || "") : ""; F.marque = m; F.gram = $("#f-gram").value; F.q = $("#f-q").value.trim(); toutVoir = false; REM_TOUT = false; NV_TOUT = false; afficher(); };
-  for (const id of ["#f-periode", "#f-de", "#f-a", "#f-cat", "#f-ens", "#f-marque", "#f-prod", "#f-gram"]) $(id)?.addEventListener("change", maj);
+  const maj = () => { F.periode = $("#f-periode").value; F.de = $("#f-de")?.value || ""; F.a = $("#f-a")?.value || ""; F.q = $("#f-q").value.trim(); toutVoir = false; REM_TOUT = false; NV_TOUT = false; afficher(); };
+  for (const id of ["#f-periode", "#f-de", "#f-a"]) $(id)?.addEventListener("change", maj);
+  brancherMulti();
   $("#f-tri")?.addEventListener("change", e => { TRI = e.target.value; toutVoir = false; aller = "produits"; afficher(); });
   let t; $("#f-q").addEventListener("input", () => { clearTimeout(t); t = setTimeout(maj, 300); });
   $("#tout")?.addEventListener("click", () => { toutVoir = true; afficher(); });
-  $("#effacer")?.addEventListener("click", () => { F = {...F, cat: "", ens: "", marque: "", prod: "", gram: "", q: ""}; toutVoir = false; afficher(); });
+  $("#effacer")?.addEventListener("click", () => { F = {...F, cat: [], ens: [], marque: [], prod: [], gram: [], q: ""}; toutVoir = false; afficher(); });
   $("#t-prod")?.addEventListener("click", e => {
     const tr = e.target.closest("tr.prod"); if (!tr || e.target.closest("a") || e.target.closest("button")) return;
     ouverts.has(tr.dataset.id) ? ouverts.delete(tr.dataset.id) : ouverts.add(tr.dataset.id); afficher();
@@ -417,7 +471,7 @@ function brancher(avec, rem, b, nv) {
   $("#site").querySelectorAll("[data-courbe-p]").forEach(el => el.addEventListener("click", e => { e.stopPropagation();
     if (!COURBES.length) COURBES = window.__COURBE.series.map(s => ({...s.it})); basculerCourbe("p", el.dataset.courbeP); }));
   $("#site").querySelectorAll("[data-retire]").forEach(el => el.addEventListener("click", () => { COURBES.splice(+el.dataset.retire, 1); COURBE_MSG = ""; aller = "courbes"; afficher(); }));
-  $("#site").querySelectorAll("tr.marque-ligne").forEach(el => el.addEventListener("click", () => { F.marque = el.dataset.marque; F.prod = ""; toutVoir = false; aller = "remises"; afficher(); }));
+  $("#site").querySelectorAll("tr.marque-ligne").forEach(el => el.addEventListener("click", () => { F.marque = [el.dataset.marque]; F.prod = []; toutVoir = false; aller = "remises"; afficher(); }));
   $("#site").querySelectorAll("[data-cal]").forEach(el => el.addEventListener("click", () => { const [m, j, n, mx] = el.dataset.cal.split("|");
     $("#cal-detail").innerHTML = `<b>${esc(m)}</b>, ${dateFr(j)} : ${n} remise${n > 1 ? "s" : ""} en cours, ${+mx > 0 ? `la plus forte à −${pct(+mx)}` : "offre sur le lot sans pourcentage écrit (ex. produit offert)"}.`; }));
   $("#cal-tout")?.addEventListener("click", () => { CAL_TOUT = true; aller = "calendrier"; afficher(); });

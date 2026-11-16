@@ -150,3 +150,24 @@ div.sous.mg-stock{background:var(--orangef);color:var(--texte);border-radius:6px
 .periode-dates{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:-2px 0 10px}
 .periode-dates label{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--doux);min-width:0}
 .periode-dates input{font:inherit;font-size:14px;padding:8px 10px;border:1px solid var(--ligne);border-radius:8px;background:var(--fond);color:var(--texte);width:100%;min-width:0}
+/* 16/11/2026 (Ahmed : « plus qu'une sélection », « les choix sur une ligne ») : filtres à choix multiples, une ligne par choix */
+.multi{display:flex;flex-direction:column;gap:4px;min-width:0}
+.multi.large,.multi.ouvert{grid-column:1/-1}
+.multi-lab{font-size:12px;color:var(--doux)}.multi-lab b{color:var(--bleu);font-weight:600}
+.multi-bouton{display:flex;align-items:center;gap:8px;width:100%;min-width:0;font:inherit;font-size:14px;padding:8px 10px;border:1px solid var(--ligne);border-radius:8px;background:var(--fond);color:var(--texte);text-align:left;cursor:pointer;min-height:40px}
+.multi-bouton::after{content:"▾";margin-left:auto;color:var(--doux);flex:none}
+.multi.ouvert .multi-bouton{border-color:var(--bleu)}
+.multi-val{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.multi-panneau{border:1px solid var(--bleu);border-radius:10px;background:var(--carte);padding:8px;display:flex;flex-direction:column;gap:8px}
+.multi-q{font:inherit;font-size:14px;padding:8px 10px;border:1px solid var(--ligne);border-radius:8px;background:var(--fond);color:var(--texte);width:100%;min-width:0}
+.multi-actions{display:flex;gap:8px;flex-wrap:wrap}
+.multi-liste{max-height:55vh;overflow-y:auto;overscroll-behavior:contain;border-top:1px solid var(--ligne)}
+.multi-ligne{display:flex;align-items:center;gap:10px;padding:8px 6px;min-height:40px;white-space:nowrap;border-bottom:1px solid var(--ligne);cursor:pointer;font-size:14px;color:var(--texte)}
+.multi-ligne input{flex:none;width:18px;height:18px;margin:0;accent-color:var(--bleu)}
+.multi-nom{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis}
+.multi-nb{flex:none;font-size:12px;color:var(--doux)}
+.multi-groupe{position:sticky;top:0;z-index:1;background:var(--bleuf);color:var(--texte);font-weight:700;font-size:13px;padding:6px 8px;border-bottom:1px solid var(--ligne)}
+.multi-groupe span{font-weight:400;color:var(--doux)}
+.multi-ok{align-self:stretch;min-height:42px}
+.filtres .multi-ligne{flex-direction:row;align-items:center;gap:10px;font-size:14px;color:var(--texte)}
+body:has(.multi.ouvert) .vers-sommaire{display:none!important}

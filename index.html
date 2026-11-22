@@ -130,7 +130,7 @@ function afficher(d) {
   <div class="chiffres">
     <div class="carte"><b>${S.filter(s => s.statut === "en ligne").length}</b><span>sites en ligne</span></div>
     <div class="carte"><b class="plus">${S.filter(s => /^autonome/.test((s.autonomie || {}).niveau)).length} / ${S.length}</b><span>sites autonomes</span></div>
-    <div class="carte"><b>${d.google_periode ? nf(S.reduce((t, s) => t + ((s.google || {}).clics || 0), 0)) : "—"}</b><span>${d.google_periode ? "clics depuis Google (7 jours)" : "Google : accès à créer (dimanche)"}</span></div>
+    ${caseGoogle(d.classement)}
     <div class="carte"><b class="${rouges.length ? "moins" : "plus"}">${rouges.length}</b><span>robot(s) à réparer</span></div>
     <div class="carte"><b style="color:var(--orange)">${attente.length}</b><span>réparé(s), attendent leur prochain passage</span></div>
     <div class="carte"><b>${nf(passActifs)}</b><span>Pass actifs</span></div>
@@ -145,13 +145,14 @@ function afficher(d) {
 
   h += tableRobots(rouges, "Robots à réparer", "Touchez un robot pour voir la cause.", "ko", "cause");
   h += tableRobots(attente, "Réparés, attendent leur prochain passage", "En échec avant la réparation : ils redeviennent verts seuls à leur prochain passage.", "at", "att");
+  h += sectionClassement(d);
   h += sectionMinutes(d.minutes);
   h += sectionDepenses(d.depenses);
   h += tableRobots(sources, "Panne chez la source (rien à réparer chez nous)", "Le site d'où le robot lit ses données (ministère, Douane…) ne répond plus : les anciennes données restent en ligne, le robot reprend seul quand la source revient.", "at", "src");
   h += tableRobots(arretes, "Robots qui ne tournent plus", "Plus aucun passage depuis 7 jours : jamais comptés rouges.", "in", "arr");
   h += sectionAutonomie(d);
   h += `<h2>Sites</h2><div class="sous" style="margin:-4px 0 8px">Touchez une ligne pour voir le détail.</div><div class="carte boite"><table class="cartes"><thead><tr>
-    <th>Site</th><th>Statut</th><th>Mise à jour</th><th class="n">Total</th><th class="n">Ajoutés aujourd'hui</th><th class="n">Depuis hier</th><th class="n">7 jours</th><th class="n">Google (7 j)</th><th>Visiteurs</th><th>Pass / abonnés</th><th>Robots</th></tr></thead><tbody>`;
+    <th>Site</th><th>Statut</th><th>Mise à jour</th><th class="n">Total</th><th class="n">Ajoutés aujourd'hui</th><th class="n">Depuis hier</th><th class="n">7 jours</th><th class="n">Google (28 j)</th><th>Visiteurs</th><th>Pass / abonnés</th><th>Robots</th></tr></thead><tbody>`;
   S.forEach((s, i) => {
     const age = ageJours(s.maj);
     const vieux = QUOTIDIENS.has(s.id) && age != null && age > 1;
@@ -164,7 +165,7 @@ function afficher(d) {
       <td data-l="Ajoutés aujourd'hui" class="n"><span>${s.ajout_robot != null ? delta(s.ajout_robot) + (s.ajout_lib ? ` <span class="sous">${esc(s.ajout_lib)}</span>` : "") : "—"}</span></td>
       <td data-l="Depuis hier" class="n"><span>${delta(s.evolution_jour)}</span></td>
       <td data-l="7 jours" class="n"><span>${delta(s.evolution_7j)}</span></td>
-      <td data-l="Google (7 j)" class="n"><span>${celluleGoogle(s)}</span></td>
+      <td data-l="Google (28 j)" class="n"><span>${celluleGoogle(s)}</span></td>
       <td data-l="Visiteurs"><span>${s.visiteurs != null ? `${nf(s.visiteurs)} <span class="sous">${esc(s.visiteurs_lib || "")}</span>` : "—"}</span></td>
       <td data-l="Pass / abonnés"><span>${esc(passTexte(s.pass))}</span></td>
       <td data-l="Robots"><span>${!s.robots.length ? "—" : ko.length ? `<span class="p ko">${ko.length} rouge(s) / ${s.robots.length}</span>` : att.length ? `<span class="p at">${att.length} réparé(s), en attente / ${s.robots.length}</span>` : `<span class="p ok">${s.robots.length} verts</span>`}</span></td></tr>
@@ -272,13 +273,88 @@ function sectionAutonomie(d) {
         <tr class="det" id="auto${i}" hidden><td colspan="3">${listeAFaire(s)}</td></tr>`; }).join("")}</tbody></table></div>`;
 }
 
-// 28/10/2026 (Ahmed) : ce que Google affiche déjà de chaque site (Search Console, 7 derniers jours complets)
+// 28/10/2026 (Ahmed) : ce que Google affiche de chaque site ; depuis le 21/11/2026 : 28 derniers jours du « Classement Google »
 function celluleGoogle(s) {
   const g = s.google;
   if (!g) return '<span class="sous">accès à créer</span>';
   if (!g.affichages) return '<span class="sous">absent de Google</span>';
-  return `${nf(g.clics)} clic${g.clics > 1 ? "s" : ""} <span class="sous">· ${nf(g.affichages)} affichages · position ${String(g.position).replace(".", ",")}</span>`;
+  return `${placeTexte(g.position)} <span class="sous">· ${nf(g.clics)} clic${g.clics > 1 ? "s" : ""} · ${nf(g.affichages)} affichages</span>`;
 }
+
+// 21/11/2026 (Ahmed : « dans le tableau de bord des sites je puisse voir leur classement ») : Classement Google de chaque site.
+// Source : Search Console chaque matin (secret GSC_CLE) ; sans lui, l'instantané daté fait par Claude ; sinon un encart.
+const MARCHE_GSC = "https://github.com/Ah6259/projets-ahmed/blob/main/tableau%20de%20bord/GERER%20SANS%20CLAUDE.md#cr%C3%A9er-lacc%C3%A8s-google-classement-google--une-seule-fois";
+function placeTexte(p) {
+  if (p == null) return "—";
+  const r = Math.max(1, Math.round(p));
+  return `<span style="white-space:nowrap">${r}<sup>${r === 1 ? "re" : "e"}</sup> place <span class="sous">(page ${Math.ceil(r / 10)})</span></span>`;
+}
+// En dessous de 10 affichages, une place moyenne ne veut presque rien dire : pas d'évolution annoncée, mention « peu de données »
+const PEU_AFF = 10;
+function periodeTexte(x) { return x ? `du ${dateFr(x[0])} au ${dateFr(x[1])}` : ""; }
+function evolutionGoogle(g) {
+  const a = g["28j_avant"] || {}, n = g["28j"] || {};
+  if (!a.affichages && !n.affichages) return '<span class="sous">—</span>';
+  if (!a.affichages) return '<span class="plus">nouveau dans Google</span>';
+  if (!n.affichages) return a.affichages >= PEU_AFF ? '<span class="moins">disparu de Google</span>' : '<span class="sous">plus montré (peu de données avant)</span>';
+  if (a.affichages < PEU_AFF || n.affichages < PEU_AFF) return '<span class="sous">trop peu d\'affichages pour comparer</span>';
+  const ec = Math.round(a.position) - Math.round(n.position);
+  return ec > 0 ? `<span class="plus">▲ monte de ${ec} place${ec > 1 ? "s" : ""}</span>` : ec < 0 ? `<span class="moins">▼ descend de ${-ec} place${ec < -1 ? "s" : ""}</span>` : '<span class="sous">stable</span>';
+}
+function caseGoogle(C) {
+  if (!C || C.source === "aucune" || !Object.keys(C.sites || {}).length) return `<div class="carte"><b>—</b><span>Google : accès à créer</span></div>`;
+  const clics = Object.values(C.sites).reduce((t, g) => t + ((g["28j"] || {}).clics || 0), 0);
+  return `<div class="carte"><b>${nf(clics)}</b><span>clics depuis Google (28 jours)${C.source === "instantane" ? " · relevé du " + dateFr(C.releve) : ""}</span></div>`;
+}
+function sectionClassement(d) {
+  const C = d.classement;
+  let h = `<h2>Classement Google</h2>`;
+  if (!C || C.source === "aucune" || !Object.keys(C.sites || {}).length)
+    return h + `<div class="carte" style="padding:12px 14px">Pas encore de chiffres de Google. Pour voir chaque matin la place de chaque site dans Google, ses clics et les recherches qui le montrent : créer l'accès Google une seule fois (gratuit, environ 10 minutes). <a href="${MARCHE_GSC}" target="_blank" rel="noopener">Voir la marche à suivre ↗</a></div>`;
+  const P = C.periodes || {};
+  const nom = {}; d.sites.forEach(s => { nom[hoteDe(s.url)] = s.nom; });
+  const L = Object.entries(C.sites).map(([hote, g]) => ({hote, g, nom: nom[hote] || hote}));
+  // ordre : montré souvent ces 28 jours (place fiable), puis montré un peu, puis seulement plus tôt (3 mois), puis jamais
+  const vu = x => { const a = (x.g["28j"] || {}).affichages || 0; return a >= PEU_AFF ? 0 : a ? 1 : (x.g["3m"] || {}).affichages ? 2 : 3; };
+  const pos = x => (x.g[vu(x) < 2 ? "28j" : "3m"] || {}).position ?? 999;
+  const ordreAcc = {ok: 0, at: 1, in: 2, ko: 3};
+  L.sort((a, b) => vu(a) - vu(b) || pos(a) - pos(b) || (ordreAcc[(a.g.accueil || {}).classe] ?? 2) - (ordreAcc[(b.g.accueil || {}).classe] ?? 2) || a.nom.localeCompare(b.nom));
+  const avecAcc = L.filter(x => x.g.accueil);
+  const dansGoogle = avecAcc.filter(x => x.g.accueil.classe === "ok").length;
+  const disparus = L.filter(x => ((x.g["28j_avant"] || {}).affichages || 0) >= PEU_AFF && !(x.g["28j"] || {}).affichages).map(x => x.nom);
+  const t28 = L.reduce((t, x) => [t[0] + ((x.g["28j"] || {}).clics || 0), t[1] + ((x.g["28j"] || {}).affichages || 0)], [0, 0]);
+  h += `<div class="sous" style="margin:-4px 0 8px">Ce que Google montre de chaque site : sa place moyenne quand il apparaît (1<sup>re</sup> place = tout en haut ; page 1 = les 10 premiers résultats), les clics, les « affichages » (nombre de fois où Google l'a montré) et les recherches qui le font apparaître. Plus la place est petite, mieux c'est. Touchez un site pour ses 5 premières recherches.</div>`;
+  h += C.source === "instantane"
+    ? `<div class="carte" style="padding:10px 14px;margin-bottom:10px;border-color:var(--orange)"><b>Relevé du ${dateFr(C.releve)}</b> fait par Claude : ces chiffres ne bougent pas tout seuls. Pour les avoir chaque matin : créer l'accès Google une seule fois (gratuit, environ 10 minutes). <a href="${MARCHE_GSC}" target="_blank" rel="noopener">Marche à suivre ↗</a></div>`
+    : `<div class="sous" style="margin:0 0 8px">Chiffres de Google lus ce matin (Google a environ 3 jours de retard).</div>`;
+  h += `<div class="carte" style="padding:12px 14px;margin-bottom:10px">
+    <div style="display:flex;gap:18px;flex-wrap:wrap"><span>28 derniers jours (${periodeTexte(P["28j"])}) : <b>${nf(t28[0])}</b> clic${t28[0] > 1 ? "s" : ""}, <b>${nf(t28[1])}</b> affichages</span>
+    ${avecAcc.length ? `<span>Page d'accueil enregistrée par Google : <b>${dansGoogle}</b> site${dansGoogle > 1 ? "s" : ""} sur ${avecAcc.length}</span>` : ""}</div>
+    ${disparus.length ? `<p class="moins">Disparu${disparus.length > 1 ? "s" : ""} de Google ces 28 derniers jours (montré${disparus.length > 1 ? "s" : ""} le mois d'avant, plus du tout maintenant) : ${disparus.map(esc).join(", ")}.</p>` : ""}</div>`;
+  h += `<div class="carte boite"><table class="cartes"><thead><tr><th>Site</th><th>Place (28 j)</th><th>Évolution</th><th class="n">Clics (28 j)</th><th class="n">Affichages (28 j)</th><th>3 mois</th><th>Page d'accueil</th></tr></thead><tbody>${
+    L.map((x, i) => { const g = x.g, n = g["28j"] || {}, m = g["3m"] || {}, a = g.accueil;
+      return `<tr class="site" data-d="gg${i}"><td>${esc(x.nom)} ▸</td>
+        <td data-l="Place (28 j)"><span>${n.affichages ? placeTexte(n.position) + (n.affichages < PEU_AFF ? ' <span class="sous">· peu de données</span>' : "") : '<span class="sous">absent de Google</span>'}</span></td>
+        <td data-l="Évolution"><span>${evolutionGoogle(g)}</span></td>
+        <td data-l="Clics (28 j)" class="n"><span>${nf(n.clics || 0)}</span></td>
+        <td data-l="Affichages (28 j)" class="n"><span>${nf(n.affichages || 0)}</span></td>
+        <td data-l="3 mois"><span>${m.affichages ? `${placeTexte(m.position)} <span class="sous">· ${nf(m.clics)} clic${m.clics > 1 ? "s" : ""} · ${nf(m.affichages)} aff.</span>` : '<span class="sous">jamais montré</span>'}</span></td>
+        <td data-l="Page d'accueil"><span>${a ? `<span class="p ${esc(a.classe)}">${esc(a.texte)}</span>` : '<span class="sous">—</span>'}</span></td></tr>
+        <tr class="det" id="gg${i}" hidden><td colspan="7">${detailGoogle(x, P, C)}</td></tr>`; }).join("")}</tbody></table></div>`;
+  return h;
+}
+function detailGoogle(x, P, C) {
+  const g = x.g, l = [];
+  const ligne = (lib, k) => { const v = g[k] || {}; return `${lib} ${periodeTexte(P[k])} : ${v.affichages ? `${placeTexte(v.position)}, ${nf(v.clics)} clic${v.clics > 1 ? "s" : ""}, ${nf(v.affichages)} affichages` : "pas montré par Google"}`; };
+  l.push(ligne("7 derniers jours", "7j") + " ; " + ligne("7 jours d'avant", "7j_avant"));
+  l.push(ligne("28 jours d'avant", "28j_avant"));
+  if (g.accueil) l.push(`Page d'accueil : <b>${esc(g.accueil.texte)}</b>${g.accueil.derniere_visite ? ` (dernière visite du robot de Google le ${dateFr(g.accueil.derniere_visite)})` : ""}.`);
+  const R = g.recherches || [];
+  l.push(R.length ? `<b>Recherches qui le font apparaître</b> (${C.recherches_periode === "3m" ? "3 derniers mois" : "période"}, les 5 premières) :<ul class="afaire">${R.map(r => `<li>« ${esc(r.q)} » : ${placeTexte(r.position)}, ${nf(r.clics)} clic${r.clics > 1 ? "s" : ""}, ${nf(r.affichages)} affichage${r.affichages > 1 ? "s" : ""}</li>`).join("")}</ul>`
+    : `Aucune recherche connue (Google ne donne pas les recherches très rares).`);
+  return l.join("<br>");
+}
+function hoteDe(u) { try { return new URL(u).hostname.replace(/^www\./, ""); } catch { return u; } }
 
 function detail(s) {
   const l = [`<b>À faire pour l'autonomie</b> ${listeAFaire(s)}`];
@@ -290,7 +366,7 @@ function detail(s) {
 
 // 23/10/2026 (Ahmed : « ces boutons doivent fonctionner ») : chaque case du haut mène à sa section (titre h2 trouvé par ses
 // premiers mots) ; branché après chaque affichage, sans toucher au code qui dessine les cases.
-const CASES = [[/sites en ligne/i, /^Sites/], [/Google/i, /^Sites/], [/autonomes/i, /^Autonomie/], [/à réparer|en échec/i, /^Robots (à réparer|en échec)/], [/attendent/i, /^Réparés/],
+const CASES = [[/sites en ligne/i, /^Sites/], [/Google/i, /^Classement Google/], [/autonomes/i, /^Autonomie/], [/à réparer|en échec/i, /^Robots (à réparer|en échec)/], [/attendent/i, /^Réparés/],
   [/Pass actifs/i, /^Clients/], [/minutes GitHub/i, /^Minutes GitHub/], [/abonnements par mois/i, /^Dépenses et abonnements/], [/ajoutés aujourd/i, /^Sites/], [/clients et abonnés/i, /^Clients/]];
 function brancherCases() {
   document.querySelectorAll(".chiffres .carte").forEach(c => {

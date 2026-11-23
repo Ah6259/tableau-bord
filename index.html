@@ -275,6 +275,20 @@ function sectionCercle(C) {
     ${b.detail ? `<p class="sous">${esc(b.detail)}</p>` : ""}</div>`;
   if (C.bilans.length > 1) h += `<h3>Bilans précédents</h3><div class="carte boite"><table class="cartes"><thead><tr><th>Date</th>${C.mesures.map(m => `<th class="n" title="${esc(m.nom)}">${esc(m.court || m.nom)}</th>`).join("")}<th>Verdict</th></tr></thead><tbody>${
     C.bilans.map(x => `<tr><td>${dateFr(x.date)}</td>${C.mesures.map(m => `<td data-l="${esc(m.court || m.nom)}" class="n"><span>${val((x.mesures || {})[m.cle])}</span></td>`).join("")}<td data-l="Verdict"><span>${badge(VERDICTS, x.verdict)}</span></td></tr>`).join("")}</tbody></table></div>`;
+  // 23/11/2026 (Ahmed) : plan d'action avec barre de progression + sites de référence (liens, ce qu'ils nous apprennent) ; source unique cercle.json
+  const barre = (pc, haut) => `<div role="progressbar" aria-valuenow="${pc}" aria-valuemin="0" aria-valuemax="100" style="height:${haut}px;border-radius:99px;background:var(--fond);border:1px solid var(--ligne);margin:6px 0;overflow:hidden"><div style="height:100%;width:${pc}%;background:${pc >= 100 ? "var(--vert)" : pc > 0 ? "var(--orange)" : "var(--ligne)"}"></div></div>`;
+  const P = C.plan || [];
+  if (P.length) h += `<h3>Plan d'action <span class="sous">(${P.length} étapes)</span></h3>
+    <div class="carte" style="padding:12px 14px"><div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap"><b>Avancement du plan</b><b style="font-size:20px">${C.plan_pourcent} %</b></div>${barre(C.plan_pourcent, 14)}
+    <div class="sous">Une étape avance avec ses solutions : fait = 100 %, en cours = 50 %, à faire ou à décider = 0. Dites à Claude « fais CE.x » ou « améliore le plan d'action ».</div></div>
+    <div class="carte boite"><table class="cartes"><thead><tr><th>Étape</th><th>Action</th><th>Avancement</th><th>Signal pour passer à la suite</th></tr></thead><tbody>${
+    P.map(e => `<tr><td><b>${e.etape}. ${esc(e.quoi)}</b><br><span class="sous">d'après ${esc(e.d_apres || "")}</span></td><td data-l="Action"><span>${esc(e.action || "")}${Object.keys(e.etats || {}).length ? `<br>${Object.entries(e.etats).map(([n, s]) => `${esc(n)} ${badge(STATUTS, s)}`).join(" ")}` : ""}</span></td><td data-l="Avancement"><span><b>${e.pourcent} %</b> ${badge(STATUTS, e.statut)}${barre(e.pourcent, 8)}</span></td><td data-l="Signal"><span class="sous">${esc(e.signal || "—")}</span></td></tr>`).join("")}</tbody></table></div>`;
+  const X = C.exemples || [];
+  if (X.length) h += `<h3>Sites de référence <span class="sous">(${X.length})</span></h3><div class="sous" style="margin:-4px 0 8px">Ce que chacun nous apprend pour le cercle Clicvia.</div>
+    ${X.map(x => `<div class="carte" style="padding:10px 14px;margin-bottom:8px"><p style="margin:0 0 4px"><b>${esc(x.nom)}</b> <span class="sous">· ${esc(x.pays || "")}</span></p>
+      <p style="margin:0 0 4px">${(x.liens || []).map(([n, u]) => `<a href="${esc(u)}" target="_blank" rel="noopener" style="white-space:nowrap">${esc(n)} ↗</a>`).join(" · ")}</p>
+      <p style="margin:0 0 4px">${esc(x.fait || "")} <span class="sous">— qui paie : ${esc(x.paie || "—")}</span></p>
+      <p style="margin:0">💡 <b>Ce qu'il nous apprend :</b> ${esc(x.lecon || "")}</p></div>`).join("")}`;
   h += `<h3>Solutions pour faire tourner le cercle <span class="sous">(${C.solutions.length})</span></h3><div class="sous" style="margin:-4px 0 8px">Dites à Claude « ajoute une solution au cercle : … » ou « fais CE.x » : chaque solution a la mesure qui montrera si elle marche.</div>
     <div class="carte boite"><table class="cartes"><thead><tr><th>N°</th><th>Solution</th><th>État</th><th>Comment on verra si ça marche</th></tr></thead><tbody>${
     C.solutions.length ? C.solutions.map(s => `<tr><td>${esc(s.n || "")}</td><td data-l="Solution"><span>${esc(s.quoi)}</span></td><td data-l="État"><span>${badge(STATUTS, s.statut)}</span></td><td data-l="Mesure"><span class="sous">${esc(s.mesure || "—")}</span></td></tr>`).join("")

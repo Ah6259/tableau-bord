@@ -41,7 +41,20 @@ summary{cursor:pointer}
 .chiffres .carte.clic span::after{content:" ›";color:var(--bleu)}
 .chiffres .carte span[data-vide]::after{content:" · aucun"}
 h2{scroll-margin-top:12px}
-h2.eclair{animation:eclair 1.6s}
+h2.eclair,details.section.eclair{animation:eclair 1.6s}
+/* 22/11/2026 (Ahmed : « toutes les sections compactes comme le tableau des snacks », règle générale § 66) : chaque partie repliée */
+details.section{margin-top:10px;scroll-margin-top:12px;background:var(--carte);border:1px solid var(--ligne);border-radius:12px}
+details.section>summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:10px;padding:12px 14px;min-height:48px;border-radius:12px}
+details.section>summary::-webkit-details-marker{display:none}
+details.section>summary::before{content:"▸";color:var(--bleu);font-size:15px;flex:none;transition:transform .15s}
+details.section[open]>summary::before{transform:rotate(90deg)}
+details.section>summary h2{margin:0;font-size:16px;flex:1;min-width:0}
+details.section>summary .compte{flex:none;font-size:12px;font-weight:600;color:var(--bleu);background:var(--bleuf);border-radius:99px;padding:2px 9px;white-space:nowrap}
+details.section>summary:hover{background:var(--fond)}
+details.section[open]>summary{border-bottom:1px solid var(--ligne);border-radius:12px 12px 0 0}
+details.section>.corps{padding:8px 14px 14px;min-width:0}
+details.section>.corps>.sous:first-child{margin-top:0!important}
+@media print{details.section>summary::before{display:none}}
 @keyframes eclair{0%{background:var(--bleuf)}100%{background:transparent}}
 .journal{font:12px/1.5 ui-monospace,Consolas,monospace;background:var(--carte);border:1px solid var(--ligne);border-radius:8px;padding:8px 10px;margin:6px 0;white-space:pre-wrap;word-break:break-word;color:var(--texte)}
 .boite{overflow-x:auto}
@@ -200,8 +213,11 @@ function afficher(d) {
 
   if (d.erreurs && d.erreurs.length) h += `<h2>Lectures en échec</h2><div class="carte" style="padding:12px 14px"><ul class="sous">${d.erreurs.map(e => `<li>${esc(e)}</li>`).join("")}</ul></div>`;
   $("#tdb").innerHTML = h;
+  compacter($("#tdb"));
   document.querySelectorAll("tr.site").forEach(tr => tr.addEventListener("click", () => { const x = document.getElementById(tr.dataset.d); x.hidden = !x.hidden; }));
   $("#sortir").addEventListener("click", () => { ecrire("tdb-code", null); location.reload(); });
+  { const sel = document.getElementById("tri-google"); const z = document.getElementById("sec-classement");
+    if (sel && z) sel.addEventListener("change", () => { ecrire("tdb-tri-google", sel.value); z.outerHTML = `<div id="sec-classement">${sectionClassementBrute(DERNIERES)}</div>`; brancherClassement(); }); }
 }
 
 // 15/11/2026 (Ahmed : « ajoute le calcul des minutes restantes des 2 000 ») : minutes GitHub des dépôts PRIVÉS (les publics
@@ -306,9 +322,25 @@ function caseGoogle(C) {
   const clics = Object.values(C.sites).reduce((t, g) => t + ((g["28j"] || {}).clics || 0), 0);
   return `<div class="carte"><b>${nf(clics)}</b><span>clics depuis Google (28 jours)${C.source === "instantane" ? " · relevé du " + dateFr(C.releve) : ""}</span></div>`;
 }
-function sectionClassement(d) {
+const TRIS_GOOGLE = {
+  fiable: "Recommandé : souvent montrés d'abord, puis par place",
+  place: "Place dans Google (la meilleure d'abord)",
+  clics: "Clics venus de Google (le plus d'abord)",
+  affichages: "Affichages dans Google (le plus d'abord)",
+  nom: "Nom du site (A → Z)",
+};
+let DERNIERES = null;
+function sectionClassement(d) { return `<h2>Classement Google</h2><div id="sec-classement">${sectionClassementBrute(d)}</div>`; }
+function brancherClassement() {
+  const z = document.getElementById("sec-classement"); if (!z) return;
+  z.querySelectorAll("tr.site").forEach(tr => tr.addEventListener("click", () => { const x = document.getElementById(tr.dataset.d); x.hidden = !x.hidden; }));
+  const sel = z.querySelector("#tri-google");
+  if (sel) sel.addEventListener("change", () => { ecrire("tdb-tri-google", sel.value); z.outerHTML = `<div id="sec-classement">${sectionClassementBrute(DERNIERES)}</div>`; brancherClassement(); });
+}
+function sectionClassementBrute(d) {
   const C = d.classement;
-  let h = `<h2>Classement Google</h2>`;
+  let h = "";
+  if (d) DERNIERES = d;
   if (!C || C.source === "aucune" || !Object.keys(C.sites || {}).length)
     return h + `<div class="carte" style="padding:12px 14px">Pas encore de chiffres de Google. Pour voir chaque matin la place de chaque site dans Google, ses clics et les recherches qui le montrent : créer l'accès Google une seule fois (gratuit, environ 10 minutes). <a href="${MARCHE_GSC}" target="_blank" rel="noopener">Voir la marche à suivre ↗</a></div>`;
   const P = C.periodes || {};
@@ -318,7 +350,19 @@ function sectionClassement(d) {
   const vu = x => { const a = (x.g["28j"] || {}).affichages || 0; return a >= PEU_AFF ? 0 : a ? 1 : (x.g["3m"] || {}).affichages ? 2 : 3; };
   const pos = x => (x.g[vu(x) < 2 ? "28j" : "3m"] || {}).position ?? 999;
   const ordreAcc = {ok: 0, at: 1, in: 2, ko: 3};
-  L.sort((a, b) => vu(a) - vu(b) || pos(a) - pos(b) || (ordreAcc[(a.g.accueil || {}).classe] ?? 2) - (ordreAcc[(b.g.accueil || {}).classe] ?? 2) || a.nom.localeCompare(b.nom));
+  // 22/11/2026 (Ahmed : « je peux voir un choix de tri ») : choix gardé dans le téléphone (tdb-tri-google)
+  const tri = TRIS_GOOGLE[lire("tdb-tri-google")] ? lire("tdb-tri-google") : "fiable";
+  const v28 = (x, k) => (x.g["28j"] || {})[k] || 0;
+  const placeSeule = x => (x.g["28j"] || {}).affichages ? x.g["28j"].position : (x.g["3m"] || {}).affichages ? 500 + x.g["3m"].position : 9999;
+  const parNom = (a, b) => a.nom.localeCompare(b.nom);
+  const comparer = {
+    fiable: (a, b) => vu(a) - vu(b) || pos(a) - pos(b) || (ordreAcc[(a.g.accueil || {}).classe] ?? 2) - (ordreAcc[(b.g.accueil || {}).classe] ?? 2) || parNom(a, b),
+    place: (a, b) => placeSeule(a) - placeSeule(b) || v28(b, "affichages") - v28(a, "affichages") || parNom(a, b),
+    clics: (a, b) => v28(b, "clics") - v28(a, "clics") || v28(b, "affichages") - v28(a, "affichages") || parNom(a, b),
+    affichages: (a, b) => v28(b, "affichages") - v28(a, "affichages") || v28(b, "clics") - v28(a, "clics") || parNom(a, b),
+    nom: parNom,
+  }[tri];
+  L.sort(comparer);
   const avecAcc = L.filter(x => x.g.accueil);
   const dansGoogle = avecAcc.filter(x => x.g.accueil.classe === "ok").length;
   const disparus = L.filter(x => ((x.g["28j_avant"] || {}).affichages || 0) >= PEU_AFF && !(x.g["28j"] || {}).affichages).map(x => x.nom);
@@ -331,6 +375,7 @@ function sectionClassement(d) {
     <div style="display:flex;gap:18px;flex-wrap:wrap"><span>28 derniers jours (${periodeTexte(P["28j"])}) : <b>${nf(t28[0])}</b> clic${t28[0] > 1 ? "s" : ""}, <b>${nf(t28[1])}</b> affichages</span>
     ${avecAcc.length ? `<span>Page d'accueil enregistrée par Google : <b>${dansGoogle}</b> site${dansGoogle > 1 ? "s" : ""} sur ${avecAcc.length}</span>` : ""}</div>
     ${disparus.length ? `<p class="moins">Disparu${disparus.length > 1 ? "s" : ""} de Google ces 28 derniers jours (montré${disparus.length > 1 ? "s" : ""} le mois d'avant, plus du tout maintenant) : ${disparus.map(esc).join(", ")}.</p>` : ""}</div>`;
+  h += `<div style="margin:0 0 8px"><label class="sous">Trier : <select id="tri-google">${Object.entries(TRIS_GOOGLE).map(([k, t]) => `<option value="${k}"${k === tri ? " selected" : ""}>${t}</option>`).join("")}</select></label></div>`;
   h += `<div class="carte boite"><table class="cartes"><thead><tr><th>Site</th><th>Place (28 j)</th><th>Évolution</th><th class="n">Clics (28 j)</th><th class="n">Affichages (28 j)</th><th>3 mois</th><th>Page d'accueil</th></tr></thead><tbody>${
     L.map((x, i) => { const g = x.g, n = g["28j"] || {}, m = g["3m"] || {}, a = g.accueil;
       return `<tr class="site" data-d="gg${i}"><td>${esc(x.nom)} ▸</td>
@@ -366,6 +411,27 @@ function detail(s) {
 
 // 23/10/2026 (Ahmed : « ces boutons doivent fonctionner ») : chaque case du haut mène à sa section (titre h2 trouvé par ses
 // premiers mots) ; branché après chaque affichage, sans toucher au code qui dessine les cases.
+// 22/11/2026 (règle générale § 66) : chaque titre <h2> devient une partie repliée (fermée au départ, titre + nombre) ;
+// ce qu'on a ouvert reste ouvert pendant la visite (OUVERTES) ; les cases du haut ouvrent la partie et y descendent.
+const OUVERTES = new Set();
+function compacter(racine) {
+  [...racine.children].filter(e => e.tagName === "H2").forEach(h2 => {
+    const titre = h2.textContent.trim(), id = "sec-" + titre.toLowerCase().normalize("NFD").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+    const det = document.createElement("details"); det.className = "section"; det.id = id;
+    if (OUVERTES.has(id)) det.open = true;
+    const sum = document.createElement("summary"), corps = document.createElement("div"); corps.className = "corps";
+    h2.replaceWith(det); sum.appendChild(h2); det.append(sum, corps);
+    while (det.nextSibling && det.nextSibling.tagName !== "H2") corps.appendChild(det.nextSibling);
+    const lignes = corps.querySelectorAll("tbody tr:not(.det)");
+    const dansTitre = titre.match(/\s*\((\d+)\)\s*$/);
+    if (dansTitre) h2.textContent = titre.slice(0, dansTitre.index);
+    const n = dansTitre ? dansTitre[1] : [...lignes].filter(tr => !tr.querySelector("td.vide")).length;
+    if (dansTitre || lignes.length) { const c = document.createElement("span"); c.className = "compte"; c.textContent = n; sum.appendChild(c); }
+    det.addEventListener("toggle", () => det.open ? OUVERTES.add(id) : OUVERTES.delete(id));
+  });
+}
+window.addEventListener("beforeprint", () => document.querySelectorAll("details.section").forEach(d => { d.dataset.avant = d.open ? "1" : ""; d.open = true; }));
+window.addEventListener("afterprint", () => document.querySelectorAll("details.section").forEach(d => { d.open = d.dataset.avant === "1"; }));
 const CASES = [[/sites en ligne/i, /^Sites/], [/Google/i, /^Classement Google/], [/autonomes/i, /^Autonomie/], [/à réparer|en échec/i, /^Robots (à réparer|en échec)/], [/attendent/i, /^Réparés/],
   [/Pass actifs/i, /^Clients/], [/minutes GitHub/i, /^Minutes GitHub/], [/abonnements par mois/i, /^Dépenses et abonnements/], [/ajoutés aujourd/i, /^Sites/], [/clients et abonnés/i, /^Clients/]];
 function brancherCases() {
@@ -379,8 +445,11 @@ function brancherCases() {
     const aller = () => {
       const h2 = [...document.querySelectorAll("#tdb h2")].find(h => cible.test(h.textContent.trim()));
       if (!h2) { c.querySelector("span").dataset.vide = "1"; setTimeout(() => delete c.querySelector("span").dataset.vide, 1800); return; }
-      h2.scrollIntoView({behavior: "smooth", block: "start"});
-      h2.classList.remove("eclair"); void h2.offsetWidth; h2.classList.add("eclair");
+      const det = h2.closest("details.section");
+      if (det) { det.open = true; OUVERTES.add(det.id); }
+      const cible2 = det || h2;
+      cible2.scrollIntoView({behavior: "smooth", block: "start"});
+      cible2.classList.remove("eclair"); void cible2.offsetWidth; cible2.classList.add("eclair");
     };
     c.addEventListener("click", aller);
     c.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); aller(); } });

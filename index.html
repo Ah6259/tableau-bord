@@ -371,7 +371,9 @@ let DERNIERES = null;
 // 26/11/2026 (VIS.3, Ahmed : « voir chaque week-end si ça s'améliore ») : pages proposées à Google, inspectées chaque samedi par le robot
 const ETAT_FR = {"Submitted and indexed": "dans Google", "Indexed, not submitted in sitemap": "dans Google",
   "Crawled - currently not indexed": "visitée, pas retenue", "Discovered - currently not indexed": "connue, pas encore visitée",
-  "URL is unknown to Google": "inconnue de Google"};
+  "URL is unknown to Google": "inconnue de Google", "Envoyée et indexée": "dans Google", "Indexée, mais non envoyée dans un sitemap": "dans Google",
+  "Explorée, actuellement non indexée": "visitée, pas retenue", "Détectée, actuellement non indexée": "connue, pas encore visitée",
+  "Google ne reconnaît pas cette URL": "inconnue de Google"};
 function sectionIndexation(I) {
   if (!I || !I.resume) return `<h2>Pages dans Google</h2><div class="sous" style="margin:-4px 0 8px">Premier relevé le samedi qui vient (le robot inspecte chaque samedi les premières pages du plan du site de chaque site).</div>`;
   const R = I.resume, H = Object.entries(I.historique || {}).sort();
